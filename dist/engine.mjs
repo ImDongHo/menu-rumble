@@ -1,5 +1,7 @@
 import {terrainContains,constrainTerrain,terrainWaypoint,terrainSegmentClear} from './terrain.mjs';
 import {FLAT_MAPS} from './flat-maps.mjs';
+import {TrapField,trapWaypoint,trapType} from './traps.mjs';
+export const MODES={classic:{name:'일반 난투',description:'마지막까지 남은 메뉴가 승리해요.'},captain:{name:'대장전',description:'왕관을 쓴 대장이 쓰러지면 해당 팀이 모두 탈락해요.'},traps:{name:'함정전',description:'2초 예고! 폭발·독 장판·충격파를 피해 살아남으세요.'}};
 export const COLORS = ['#ec6259','#ed9c3e','#ee79a3','#479cdd','#a67b54','#e1bd39','#a884d3','#60aa59','#39b6a2','#ca799b','#7298b3','#b0ba4d','#c17a49','#7e8ed0','#be9992','#8fa26b'];
 export const MAX_FIGHTERS = 160;
 export const WEAPONS = {none:{name:'맨손',multiplier:1},sword:{name:'짧은 검',multiplier:1.1}};
@@ -45,13 +47,14 @@ export function parseMenuInput(text) {
 }
 
 export class Battle {
-  constructor(entries, mapId = 'forest', seed = Date.now()) {
+  constructor(entries, mapId = 'forest', seed = Date.now(), mode = 'classic') {
     if (entries.length < 2 || entries.length > 16) throw new RangeError('참가 메뉴는 2–16개입니다.');
     const menus = entries.map(item => typeof item === 'string' ? {name:item,count:5} : {...item});
     if (menus.some(m => !m.name || !Number.isInteger(m.count) || m.count < 1 || m.count > 40)) throw new RangeError('출전 수는 메뉴마다 1–40마리입니다.');
     if (menus.reduce((sum,m) => sum + m.count, 0) > MAX_FIGHTERS) throw new RangeError(`한판에는 최대 ${MAX_FIGHTERS}마리가 참가할 수 있어요.`);
     this.random = seededRandom(seed);
     this.map = MAPS.find(m => m.id === mapId) || MAPS[0];
+    this.mode=Object.hasOwn(MODES,mode)?mode:'classic';
     this.elapsed = 0; this.state = 'ready'; this.events = []; this.eliminations = []; this.winner = null;
     this.teams = menus.map((m,i) => ({...m,weapon:m.weapon==='sword'?'sword':'none',id:i,color:COLORS[i]}));
     const positions = [];
@@ -65,18 +68,31 @@ export class Battle {
       const id = this.fighters.length, spot = spots[id];
       this.fighters.push({id,teamId:team.id,member,name:team.name,color:team.color,weapon:team.weapon,...spot,hp:100,vx:0,vy:0,face:this.random()>.5?1:-1,angle:0,cooldown:.15+this.random()*.65,retarget:0,target:null,step:this.random()*6.28,swing:0,swingTotal:.48,attackKind:'punch',attackSide:0,attacks:0,spin:0,hurt:0,hurtStrength:0,flash:0,stun:0,invulnerable:0,dash:0,dashCooldown:1+this.random()*3,skillCooldown:.4+this.random()*4,kills:0,dead:false,deadTime:0});
     }
+    if(this.mode==='captain'){const leaders=seededRandom(seed^0x721ca9);for(const team of this.teams){const members=this.fighters.filter(f=>f.teamId===team.id);members[Math.floor(leaders()*members.length)].isCaptain=true}}
+    this.trapField=this.mode==='traps'?new TrapField(this.map,seededRandom(seed^0x51a7cafe)):null;
+    if(this.trapField){const reaction=seededRandom(seed^0x64ba12);this.trapDamageRandom=seededRandom(seed^0x713bc4);for(const f of this.fighters)f.trapReaction=.25+reaction()*2.25}
   }
+  get traps(){return this.state==='finished'?[]:this.trapField?.zones??[]}
   get alive() { return this.fighters.filter(f => !f.dead); }
   get ring() { return this.elapsed > 24 ? Math.max(28,340-(this.elapsed-24)*8) : null; }
   get aliveTeams() { return [...new Set(this.alive.map(f => f.teamId))]; }
   start() { if (this.state === 'ready') this.state = 'running'; }
   drainEvents() { const events = this.events; this.events = []; return events; }
-  eliminate(f,killer = null) {
-    if (f.dead || this.alive.length <= 1) return;
+  eliminate(f,killer = null,cause = null) {
+    if(f.dead)return;
+    const captainOut=this.mode==='captain'&&f.isCaptain;
+    if(this.alive.length<=1||captainOut&&!this.alive.some(other=>other.teamId!==f.teamId)){f.hp=Math.max(1,f.hp);return}
     f.hp = 0; f.dead = true; f.deadTime = this.elapsed;
     this.eliminations.push(f.id);
     if (killer) { killer.kills++; killer.hp = Math.min(100,killer.hp+12); }
-    this.events.push({type:'eliminate',fighter:f,killer,x:f.x,y:f.y});
+    this.events.push({type:'eliminate',fighter:f,killer,cause,x:f.x,y:f.y});
+    if(captainOut){
+      for(const member of this.alive.filter(other=>other.teamId===f.teamId)){
+        member.hp=0;member.dead=true;member.deadTime=this.elapsed;this.eliminations.push(member.id);
+        this.events.push({type:'eliminate',fighter:member,killer:null,cause:'captain',x:member.x,y:member.y});
+      }
+      this.events.push({type:'captain-out',fighter:f,x:f.x,y:f.y});
+    }
   }
   hit(attacker,target,damage,crit = false,area = false) {
     if (target.dead || target.teamId === attacker.teamId || target.invulnerable > 0) return;
@@ -95,9 +111,26 @@ export class Battle {
     this.events.push({type:'hit',fighter:attacker,target,damage:Math.round(damage),crit,area,x:target.x,y:target.y-25});
     if (target.hp <= 0) this.eliminate(target,attacker);
   }
+  blast(zone){
+    this.events.push({type:'trap-blast',kind:zone.kind??'blast',x:zone.x,y:zone.y});
+    if(zone.kind!=='poison')this.trapDamage(zone);
+  }
+  trapDamage(zone){
+    const type=trapType(zone);
+    const victims=shuffle(this.alive.filter(f=>Math.hypot(f.x-zone.x,f.y-zone.y)<=zone.r),this.trapDamageRandom);
+    for(const f of victims){
+      const dx=f.x-zone.x,dy=f.y-zone.y,d=Math.hypot(dx,dy),angle=d?Math.atan2(dy,dx):this.trapDamageRandom()*Math.PI*2;
+      f.hp=Math.max(0,f.hp-type.damage);f.vx+=Math.cos(angle)*type.push;f.vy+=Math.sin(angle)*type.push;f.flash=.18;
+      if(type.push){f.stun=.2;f.hurt=.4;f.hurtStrength=.8}
+      this.events.push({type:'trap-hit',kind:zone.kind??'blast',fighter:f,target:f,damage:type.damage,x:f.x,y:f.y-25,crit:false});
+      if(f.hp<=0){if(this.alive.length===1)f.hp=1;else this.eliminate(f,null,'trap')}
+    }
+  }
   step(dt) {
     if (this.state !== 'running') return;
     dt = Math.min(Math.max(dt,0),.05); this.elapsed += dt;
+    const traps=this.trapField?.advance(this.elapsed);
+    if(traps?.warned)this.events.push({type:'trap-warning',x:384,y:252});
     const alive = this.alive;
     for (const f of shuffle(alive,this.random)) {
       if (f.dead) continue;
@@ -119,7 +152,10 @@ export class Battle {
       if (f.dashCooldown <= 0 && d > 60) { f.dash = .18; f.dashCooldown = 1.5+this.random()*3; this.events.push({type:'dash',fighter:f,x:f.x,y:f.y}); }
       if (f.dash > 0) speed = 155;
       if (f.stun > 0) speed = 0;
-      const waypoint=terrainWaypoint(this.map,f,target),wx=waypoint.x-f.x,wy=waypoint.y-f.y,wd=Math.hypot(wx,wy)||1;
+      const normalWaypoint=terrainWaypoint(this.map,f,target),waypoint=this.trapField?trapWaypoint(this.map,f,normalWaypoint,this.traps,this.elapsed):normalWaypoint,evading=waypoint!==normalWaypoint;
+      if(evading&&f.stun<=0)speed=86;
+      const wx=waypoint.x-f.x,wy=waypoint.y-f.y,wd=Math.hypot(wx,wy)||1;
+      if(evading){f.angle=Math.atan2(wy,wx);if(Math.abs(wx)>2)f.face=wx>0?1:-1}
       let mx = wx/wd*speed,my = wy/wd*speed,nearbyEnemies = 0;
       for (const other of alive) {
         if (other === f || other.dead) continue;
@@ -144,13 +180,13 @@ export class Battle {
       // survivor can strike several enemies instead of being locked in a damage pile.
       f.skillCooldown -= dt*Math.max(0,nearbyEnemies-2)*.7;
       f.step += dt*(speed > 15 ? 13 : 3);
-      if (f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
+      if (!evading && f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
         f.skillCooldown = 3.5+this.random()*3; f.spin=.68;f.swing = f.swingTotal = .68;f.attackKind='spin';f.attackSide=f.attacks++%2;
         const burst = this.random() < .13;
         if (burst) { f.invulnerable = .9; this.events.push({type:'comeback',fighter:f,x:f.x,y:f.y-10}); }
         this.events.push({type:'skill',fighter:f,x:f.x,y:f.y-10});
         for (const other of alive) if (!other.dead && other.teamId !== f.teamId && Math.hypot(f.x-other.x,f.y-other.y) < (burst?84:55)) this.hit(f,other,Math.round((28+this.random()*24)*(burst?2.7:1)),true,true);
-      } else if (!target.dead && d < 33 && f.cooldown <= 0 && f.stun <= 0) {
+      } else if (!evading && !target.dead && d < 33 && f.cooldown <= 0 && f.stun <= 0) {
         f.cooldown = .3+this.random()*.5; f.swing = f.swingTotal = .48;f.attackKind='punch';f.attackSide=f.attacks++%2;
         this.events.push({type:'attack',fighter:f,x:f.x,y:f.y});
         const crit = this.random() < .19;
@@ -162,10 +198,12 @@ export class Battle {
         if (f.hp <= 0) this.eliminate(f);
       }
     }
+    for(const zone of traps?.blasts??[])this.blast(zone);
+    for(const zone of traps?.pulses??[])this.trapDamage(zone);
     // Finish from live battle state only. No winner is chosen before the fight.
     const survivingTeams = this.aliveTeams;
     if (survivingTeams.length === 1) {
-      this.winner = this.alive.reduce((best,f) => f.hp > best.hp ? f : best);
+      this.winner = this.mode==='captain'?this.alive.find(f=>f.isCaptain):this.alive.reduce((best,f) => f.hp > best.hp ? f : best);
       this.state = 'finished';
       this.events.push({type:'win',fighter:this.winner,x:this.winner.x,y:this.winner.y});
     }

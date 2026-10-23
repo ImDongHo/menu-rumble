@@ -7,6 +7,8 @@ import {createTerrainFloor,createFlatBackdrop} from './outdoor-model.mjs';
 import {fighterScale} from './display-model.mjs';
 import {animalKind,animalPose,fighterArm,heldSword} from './animal-motion.mjs?v=soft-beans-2';
 import {disposeScene} from './resource-cleanup.mjs';
+import {drawTrapLabels,trapType} from './traps.mjs';
+import {createTrapMeshes,updateTrapMeshes} from './trap-model.mjs';
 const SOFT_TINT=new THREE.Color('#fff4e9');
 
 // The menu icon uses the same simple face and bean silhouette as the 3D model.
@@ -48,6 +50,7 @@ export class Renderer {
     this.deathAges=new Float32Array(MAX_FIGHTERS);this.pose={};this.arm={};this.sword={};this.root=new THREE.Object3D();this.part=new THREE.Object3D();this.matrix=new THREE.Matrix4();this.vector=new THREE.Vector3();this.color=new THREE.Color();
     const points=[];for(let i=0;i<=64;i++){const a=i/64*Math.PI*2;points.push(new THREE.Vector3(Math.cos(a),.09,Math.sin(a)))}
     this.safeRing=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#ffdb94',transparent:true,opacity:.8}));this.safeRing.visible=false;this.scene.add(this.safeRing);
+    this.trapMeshes=createTrapMeshes();for(const mesh of Object.values(this.trapMeshes))this.scene.add(mesh);
     this.onContextLost=event=>{event.preventDefault();this.contextLost=true};
     this.onContextRestored=()=>{this.contextLost=false};
     surface.addEventListener('webglcontextlost',this.onContextLost);
@@ -115,18 +118,20 @@ export class Renderer {
       this.color.set(f.flash>0?'#fff1da':f.color).lerp(SOFT_TINT,.14);b.body.setColorAt(id,this.color);
       for(const mesh of[b.arms,b.hands,b.legs,b.ears,b.catEars]){mesh.setColorAt(id*2,this.color);mesh.setColorAt(id*2+1,this.color)}
       this.part.position.set(point.x,.1,point.z);this.part.rotation.set(-Math.PI/2,0,0);this.part.scale.set(vanished?0:1.25,vanished?0:.95,1);this.part.updateMatrix();this.shadows.setMatrixAt(id,this.part.matrix);
-      this.part.position.set(point.x,.145,point.z);this.part.scale.setScalar(dead?0:scale*1.3);this.part.updateMatrix();this.teamRings.setMatrixAt(id,this.part.matrix);this.teamRings.setColorAt(id,this.color.set(f.color));
+      this.part.position.set(point.x,.145,point.z);this.part.scale.setScalar(dead?0:scale*(f.isCaptain?1.6:1.3));this.part.updateMatrix();this.teamRings.setMatrixAt(id,this.part.matrix);this.teamRings.setColorAt(id,this.color.set(f.isCaptain?'#f3cf72':f.color));
     }
     for(const mesh of Object.values(b)){mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true}
     this.shadows.instanceMatrix.needsUpdate=true;this.teamRings.instanceMatrix.needsUpdate=true;this.teamRings.instanceColor.needsUpdate=true;
   }
   event(e){
+    const trapHit=e.type==='trap-hit';if(trapHit)e={...e,type:'hit',crit:false};
     const p=this.project(e.x,e.y+(e.type==='hit'?25:0),1.6);
-    if(e.type==='hit'&&e.crit)this.numbers.push({x:p.x,y:p.y,text:e.type==='dodge'?'회피':String(e.damage)+(e.crit?'!':''),life:.65,crit:e.crit});
-    if(e.type==='hit'||e.type==='eliminate')for(let i=0;i<(this.lowPower?3:7);i++)this.particles.push({x:p.x,y:p.y,vx:(Math.random()-.5)*65,vy:-Math.random()*45,life:.4,color:e.type==='eliminate'?e.fighter.color:'#ffe7a4'});
+    if(e.type==='hit'&&(e.crit||trapHit))this.numbers.push({x:p.x,y:p.y,text:String(e.damage)+(e.crit?'!':''),life:.65,crit:e.crit,color:trapHit?trapType(e).activeColor:null});
+    if(e.type==='hit'||e.type==='eliminate')for(let i=0;i<(this.lowPower?3:7);i++)this.particles.push({x:p.x,y:p.y,vx:(Math.random()-.5)*65,vy:-Math.random()*45,life:.4,color:e.type==='eliminate'?e.fighter.color:trapHit?trapType(e).color:'#ffe7a4'});
     if(e.type==='attack'){const center=this.project(e.fighter.x,e.fighter.y,1.35),sword=e.fighter.weapon==='sword';this.rings.push({kind:'swing',x:center.x,y:center.y,angle:e.fighter.angle,side:sword?1:e.fighter.attackSide,sword,life:sword?.3:.22,color:e.fighter.color})}
     if(e.type==='hit')this.rings.push({kind:'impact',x:p.x,y:p.y,life:.18,crit:e.crit});
     if(e.type==='skill'){const screen=this.project(e.fighter.x,e.fighter.y,.1);this.rings.push({x:screen.x,y:screen.y,life:.35})}
+    if(e.type==='trap-blast')for(let i=0;i<(this.lowPower?8:18);i++)this.particles.push({x:p.x,y:p.y+16,vx:(Math.random()-.5)*100,vy:-20-Math.random()*55,life:.45,color:i%2?trapType(e).color:trapType(e).activeColor});
     if(e.type==='win')for(let i=0;i<(this.lowPower?30:70);i++)this.particles.push({x:100+Math.random()*568,y:Math.random()*80,vx:(Math.random()-.5)*30,vy:30+Math.random()*40,life:4,color:['#efca74','#cfdb91','#eda181'][i%3]});
     this.particles=this.particles.slice(this.lowPower?-90:-200);this.numbers=this.numbers.slice(-12);this.rings=this.rings.slice(this.lowPower?-32:-64);
   }
@@ -138,15 +143,17 @@ export class Renderer {
     this.actors(battle);
     this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/(this.activeMap===ART_MAP_ID?18:20),1,battle.ring/(this.activeMap===ART_MAP_ID?19.8:33));
     const center=battle.map.ringCenter??{x:384,y:252},ringPoint=this.activeMap===ART_MAP_ID?artWorldPosition(center.x,center.y):worldPosition(center.x,center.y);this.safeRing.position.set(ringPoint.x,0,ringPoint.z);
+    updateTrapMeshes(this.trapMeshes,battle,this.effects);
     this.gl.render(this.scene,this.camera);
     const c=this.c;c.clearRect(0,0,768,480);c.textAlign='center';
+    drawTrapLabels(c,battle,(x,y)=>this.project(x,y,.18),this.mobile?20:14);
     const scale=fighterScale(this.mobile,battle.fighters.length);
     for(const f of battle.alive){
       const p=this.project(f.x,f.y,1.73*scale);
       if(f.hp<100&&battle.fighters.length<=40){c.fillStyle='#172c31';c.fillRect(p.x-12,p.y,24,5);c.fillStyle=f.hp>35?'#a4e38b':'#ffb46d';c.fillRect(p.x-11,p.y+1,22*f.hp/100,3)}
-      if(battle.winner===f){c.font='26px sans-serif';c.fillStyle='#ffdc7a';c.strokeStyle='#172c31';c.lineWidth=3;c.strokeText('♛',p.x,p.y-10);c.fillText('♛',p.x,p.y-10)}
+      if(f.isCaptain||battle.winner===f){c.font=`${battle.winner===f?26:this.mobile?24:20}px sans-serif`;c.fillStyle='#ffdc7a';c.strokeStyle='#172c31';c.lineWidth=3;c.strokeText('♛',p.x,p.y-10);c.fillText('♛',p.x,p.y-10)}
     }
-    for(const n of this.numbers){n.life-=dt;n.y-=dt*25;c.globalAlpha=Math.min(1,Math.max(0,n.life*3));c.font=`800 ${n.crit?16:12}px sans-serif`;c.strokeStyle='#294331';c.lineWidth=3;c.strokeText(n.text,n.x,n.y);c.fillStyle=n.crit?'#ffda86':'#fff6d7';c.fillText(n.text,n.x,n.y)}c.globalAlpha=1;this.numbers=this.numbers.filter(n=>n.life>0);
+    for(const n of this.numbers){n.life-=dt;n.y-=dt*25;c.globalAlpha=Math.min(1,Math.max(0,n.life*3));c.font=`800 ${n.crit?16:12}px sans-serif`;c.strokeStyle='#294331';c.lineWidth=3;c.strokeText(n.text,n.x,n.y);c.fillStyle=n.color??(n.crit?'#ffda86':'#fff6d7');c.fillText(n.text,n.x,n.y)}c.globalAlpha=1;this.numbers=this.numbers.filter(n=>n.life>0);
     for(const p of this.particles){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;c.globalAlpha=Math.min(1,Math.max(0,p.life*3));c.fillStyle=p.color;c.fillRect(p.x,p.y,3,3)}c.globalAlpha=1;this.particles=this.particles.filter(p=>p.life>0);
     for(const ring of this.rings){
       ring.life-=dt;if(ring.life<=0)continue;

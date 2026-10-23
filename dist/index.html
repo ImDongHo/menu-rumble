@@ -28,8 +28,9 @@
     <section class="intro"><div><p class="eyebrow"><span></span> THE TASTIEST BATTLE ROYALE</p><h1>오늘 메뉴, <span>한판으로 정하자.</span><span class="title-spark">✦</span></h1><p class="intro-description">고민은 그만. 메뉴를 넣고, 마지막까지 살아남은 맛을 만나보세요.</p></div><div class="intro-stamp"><svg><use href="#swords"/></svg><span>고민 끝.<br><b>대결 시작!</b></span></div></section>
     <div class="workspace">
       <section class="game-column" aria-label="메뉴 난투전 경기장">
+        <div class="battle-mode-picker" role="group" aria-label="대결 모드"><span>대결 모드</span><div class="mode-options"><button type="button" data-mode="classic" aria-pressed="true">일반 난투</button><button type="button" data-mode="captain" aria-pressed="false">♛ 대장전</button><button type="button" data-mode="traps" aria-pressed="false">✦ 함정전</button></div><p id="mode-description">마지막까지 남은 메뉴가 승리해요.</p></div>
         <div class="arena-shell" id="arena-shell">
-        <div class="arena-top"><div class="arena-heading"><span class="live-dot"></span><b>메뉴 아레나</b><span class="mode-label">FREE FOR ALL</span></div><span class="round-label" id="round-label">ROUND 01</span></div>
+        <div class="arena-top"><div class="arena-heading"><span class="live-dot"></span><b>메뉴 아레나</b><span class="mode-label" id="arena-mode-name">일반 난투</span></div><span class="round-label" id="round-label">ROUND 01</span></div>
         <div class="arena-frame" id="arena-frame">
           <canvas id="arena" width="768" height="480" aria-label="위에서 내려다보는 픽셀 경기장. 각 메뉴 캐릭터가 자동으로 싸웁니다."></canvas>
           <details class="arena-legend-panel" open>
@@ -64,6 +65,6 @@
   <dialog id="info-dialog"><button class="dialog-close" aria-label="창 닫기">×</button><div id="dialog-content"></div></dialog>
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="mobile-bar" aria-label="모바일 게임 컨트롤"><button id="mobile-menu-btn">메뉴 · 수량 <span>↑</span></button><button class="primary-button" id="mobile-start-btn"><svg><use href="#swords"/></svg><span>난투전 시작</span></button></div>
-  <script type="module" src="./app-PS7V47PL.mjs"></script>
+  <script type="module" src="./app-CFWTMRCP.mjs"></script>
 </body>
 </html>
