@@ -1,6 +1,6 @@
 import {ART_MAP_ID,loadMapArt,projectArtPoint,artPillarRect} from './art-map.mjs';
 import {terrainContains} from './terrain.mjs';
-import {drawFlatGround,drawFlatProps} from './flat-scenery.mjs';
+import {drawFlatGround,drawFlatProps,sceneryStyle} from './flat-scenery.mjs';
 import{MAPS,seededRandom}from'./engine.mjs';
 const W=768,H=480;
 function rect(c,x,y,w,h,color){c.fillStyle=color;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
@@ -16,17 +16,17 @@ function pillar(c,o,map){const{x,y}=o;
  c.restore();return;
  }rect(c,x-21,y+1,45,13,'#23332925');rect(c,x-16,y-18,32,26,map.edge);rect(c,x-12,y-27,24,26,shade(map.tile,-9));rect(c,x-14,y-29,28,8,shade(map.tile,20));rect(c,x-17,y-8,34,9,shade(map.floor,-12));rect(c,x-17,y-10,34,4,shade(map.tile,15));rect(c,x-9,y-20,4,9,shade(map.edge,18));rect(c,x+5,y-19,3,8,map.edge);if(map.id==='forest'){rect(c,x-14,y-29,14,4,'#78925e');rect(c,x-15,y-25,5,8,'#6c8452');rect(c,x+11,y-8,6,5,'#8ba367')}else if(map.id==='moon'){rect(c,x-3,y-24,6,6,'#d4cce1');rect(c,x-1,y-25,2,8,'#f1e4f3')}}
 function outdoorMap(c,map){
- rect(c,0,0,W,H,map.ground);const random=seededRandom(8721);
+ rect(c,0,0,W,H,map.ground);const random=seededRandom(8721),style=map.layout?sceneryStyle(map):null;
  for(let i=0;i<220;i++)rect(c,random()*W,random()*H,8+random()*20,2,i%3?map.light:map.dark);
  if(map.layout){drawFlatGround(c,map);drawFlatProps(c,map)}
  const path=()=>{c.beginPath();for(const polygon of[map.terrain,...map.holes??[]]){polygon.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath()}};
  c.save();c.translate(0,9);path();c.fillStyle=map.edge;c.fill('evenodd');c.restore();path();c.fillStyle=map.floor;c.fill('evenodd');
  c.save();path();c.clip('evenodd');
- for(let y=90,row=0;y<414;y+=18,row++)for(let x=76;x<692;x+=24){rect(c,x+1,y+1,22,16,(row+Math.floor(x/24))%3?map.tile:map.floor);if(map.id==='ice'&&random()>.88)rect(c,x+3,y+4,11,1,'#f1ffff')}
+ for(let y=90,row=0;y<414;y+=18,row++)for(let x=76;x<692;x+=24){rect(c,x+1,y+1,22,16,(row+Math.floor(x/24))%3?map.tile:map.floor);if((map.id==='ice'||map.theme==='ice')&&random()>.88)rect(c,x+3,y+4,11,1,'#f1ffff');if(map.theme==='lava'&&(row+Math.floor(x/24))%11===0){rect(c,x+6,y+5,1,6,map.accent);rect(c,x+6,y+10,8,1,map.accent)}if(map.theme==='moon'&&(row+Math.floor(x/24))%9===0){rect(c,x+8,y+5,6,6,map.accent);rect(c,x+9,y+6,4,4,map.floor)}}
  if(map.bridge){const b=map.bridge;rect(c,b.x,b.y,b.w,b.h,'#8f704d');for(let y=b.y+1;y<b.y+b.h;y+=8){rect(c,b.x+1,y,b.w-2,6,'#c2a06a');rect(c,b.x+1,y,b.w-2,1,'#d9ba83')}}
  c.restore();path();c.strokeStyle=map.id==='ice'?'#efffff':map.edge;c.lineWidth=4;c.stroke();
  if(map.layout){for(const polygon of[map.terrain,...map.holes??[]])for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length],n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/18);for(let j=0;j<n;j++){const t=(j+.5)/n,x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;rect(c,x-4,y-6,8,7,map.edge);rect(c,x-4,y-7,8,2,map.accent)}}}
- if(map.holes)for(const polygon of map.holes){const xs=polygon.map(p=>p[0]),ys=polygon.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;rect(c,x+5,y+5,w-10,h-10,'#6f985c');for(let i=0;i<22;i++){const px=x+16+random()*(w-32),py=y+16+random()*(h-32);rect(c,px-6,py-5,12,10,i%3?'#91ad72':'#c7c98a')}}
+ if(map.holes)for(const polygon of map.holes){const xs=polygon.map(p=>p[0]),ys=polygon.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;rect(c,x+5,y+5,w-10,h-10,style?.garden??'#6f985c');for(let i=0;i<22;i++){const px=x+16+random()*(w-32),py=y+16+random()*(h-32);rect(c,px-6,py-5,12,10,i%3?(style?.gardenPlant??'#91ad72'):(style?.gardenLight??'#c7c98a'))}}
  if(map.id==='ship'){for(const x of[244,524]){rect(c,x-4,44,8,54,'#75523a');rect(c,x-30,53,60,4,'#af9063');rect(c,x-26,58,52,25,'#f0e0bb')}}
  for(const o of map.obstacles)pillar(c,o,map);
 }

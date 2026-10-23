@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import {terrainContains} from './terrain.mjs';
-import {flatScenery,drawFlatGround} from './flat-scenery.mjs';
+import {flatSceneryBoxes,drawFlatGround,sceneryStyle} from './flat-scenery.mjs';
 
 export function createFlatBackdrop(map){
   const canvas=document.createElement('canvas');canvas.width=1152;canvas.height=1024;
@@ -21,7 +21,7 @@ export function createTerrainFloor(map){
 
 export function outdoorBoxes(map){
   const quietTile=new THREE.Color(map.floor).lerp(new THREE.Color(map.tile),.18).getStyle();
-  const boxes=[],ice=map.id==='ice',lava=map.id==='lava',ship=map.id==='ship';
+  const boxes=[],ice=map.id==='ice'||map.theme==='ice',lava=map.id==='lava'||map.theme==='lava',ship=map.id==='ship',style=map.layout?sceneryStyle(map):null;
   const add=(x,y,z,w,h,d,color)=>boxes.push({x,y,z,w,h,d,color});
   // Water and lava sit below the playable platforms.
   if(!map.layout)add(0,-1.05,0,48,.15,32,map.ground);
@@ -36,6 +36,7 @@ export function outdoorBoxes(map){
     add((x+11.5-384)/20,.075,(y+8.5-252)/20,1.15,.05,.85,(row+Math.floor(x/24))%3?quietTile:map.floor);
     if(ice&&(row+Math.floor(x/24))%7===0)add((x-374)/20,.107,(y-244)/20,.6,.012,.025,'#f2ffff');
     if(lava&&(row+Math.floor(x/24))%11===0)add((x-374)/20,.107,(y-244)/20,.55,.012,.025,'#e6a472');
+    if(map.theme==='moon'&&(row+Math.floor(x/24))%9===0){add((x-374)/20,.107,(y-244)/20,.25,.012,.25,'#d7d3eb');add((x-374)/20,.115,(y-244)/20,.16,.012,.16,map.floor)}
   }
   // Banks and railings follow the same polygon used by collision.
   if(map.bridge){const b=map.bridge;for(let y=b.y+4;y<b.y+b.h;y+=8)add((b.x+b.w/2-384)/20,.075,(y-252)/20,b.w/20,.05,.37,'#ba945f')}
@@ -49,7 +50,7 @@ export function outdoorBoxes(map){
     }
   }
   for(const o of map.obstacles){const x=(o.x-384)/20,z=(o.y-252)/20,r=o.r/20;
-    if(map.layout){add(x,.46,z,r*1.4,.92,r*1.4,map.edge);add(x,.98,z,r*1.6,.13,r*1.6,map.tile);add(x-.18,1.06,z-.12,r*.8,.06,r*.5,'#839363')}
+    if(map.layout){add(x,.46,z,r*1.4,.92,r*1.4,map.edge);add(x,.98,z,r*1.6,.13,r*1.6,map.tile);add(x-.18,1.06,z-.12,r*.8,.06,r*.5,map.accent)}
     else if(ice){
       add(x,.5,z,r*1.4,1,r*1.4,'#8bbfdb');add(x-.18,1.1,z,r,1.2,r,'#c5edf4');add(x-.28,1.77,z,.38,.2,.38,'#f3ffff');
     }else if(lava){
@@ -60,22 +61,9 @@ export function outdoorBoxes(map){
       for(const offset of[-r*.5,r*.5]){add(x+offset,.48,z+r*.71,.09,1,.04,'#654938');add(x+offset,1.045,z,.09,.025,r*1.4,'#654938')}
     }
   }
-  if(map.holes)for(const hole of map.holes){const xs=hole.map(p=>p[0]),ys=hole.map(p=>p[1]),cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;add((cx-384)/20,-.1,(cy-252)/20,(Math.max(...xs)-Math.min(...xs))/20,.15,(Math.max(...ys)-Math.min(...ys))/20,'#75945c');for(const dx of[-50,0,50]){add((cx+dx-384)/20,.35,(cy-252)/20,1.8,.7,1.5,'#91ad72');add((cx+dx-384)/20,.8,(cy-252)/20,1.2,.45,1,'#b3c590')}}
-  if(map.layout)for(const item of flatScenery(map)){
-    const x=(item.x-384)/20,z=(item.y-252)/20,s=item.size,color=item.color;
-    const prop=(dx,y,dz,w,h,d,c)=>add(x+dx*s,-.9+y*s,z+dz*s,w*s,h*s,d*s,c);
-    if(item.kind==='tree'){
-      prop(0,.7,0,.25,1.4,.25,'#806c4e');prop(-.25,1.2,0,.65,.14,.15,'#806c4e');
-      prop(0,1.8,0,2.5,.8,1.7,'#4d704e');prop(-.2,2.35,0,2.3,.8,1.9,color);prop(.15,2.85,-.1,1.6,.6,1.4,color);prop(-.4,2.75,-.2,1.25,.24,1.05,map.id==='garden-loop'&&color==='#ca94a3'?'#e3b9bf':'#91a972');
-    }else if(item.kind==='rock'){
-      prop(0,.25,0,1.2,.5,.85,'#748173');prop(-.1,.57,0,.85,.4,.7,color);prop(-.2,.8,-.07,.55,.08,.5,'#b3b8a0');
-    }else if(item.kind==='reed'){
-      for(const dx of[-.2,0,.2]){prop(dx,.4,0,.055,.8,.055,color);prop(dx,.85,0,.09,.16,.08,'#b5a06e')}
-    }else{
-      prop(0,.25,0,1.25,.5,.9,'#607d51');prop(-.15,.55,0,.9,.4,.8,color);prop(-.22,.76,-.05,.55,.08,.6,'#a3b580');if(map.id==='garden-loop')prop(.25,.7,.25,.14,.08,.14,'#e7bcc5');
-    }
-  }
-  if(ice){
+  if(map.holes)for(const hole of map.holes){const xs=hole.map(p=>p[0]),ys=hole.map(p=>p[1]),cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;add((cx-384)/20,-.1,(cy-252)/20,(Math.max(...xs)-Math.min(...xs))/20,.15,(Math.max(...ys)-Math.min(...ys))/20,style?.garden??'#75945c');for(const dx of[-50,0,50]){add((cx+dx-384)/20,.35,(cy-252)/20,1.8,.7,1.5,style?.gardenPlant??'#91ad72');add((cx+dx-384)/20,.8,(cy-252)/20,1.2,.45,1,style?.gardenLight??'#b3c590')}}
+  if(map.layout)boxes.push(...flatSceneryBoxes(map));
+  if(ice&&!map.layout){
     for(const x of[-18.2,18.2])for(const z of[-7,1,8]){
       add(x,-.35,z,1.8,.45,1.6,'#d9f3ef');add(x,.4,z,.32,1.2,.32,'#748f8f');
       for(let layer=0;layer<3;layer++)add(x,1+layer*.5,z,1.5-layer*.4,.55,1.4-layer*.36,layer%2?'#d9f2ee':'#6e9997');
