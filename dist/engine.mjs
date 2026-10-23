@@ -60,7 +60,7 @@ export class Battle {
     this.fighters = [];
     for (const team of this.teams) for (let member = 0; member < team.count; member++) {
       const id = this.fighters.length, spot = spots[id];
-      this.fighters.push({id,teamId:team.id,member,name:team.name,color:team.color,weapon:team.weapon,...spot,hp:100,vx:0,vy:0,face:this.random()>.5?1:-1,angle:0,cooldown:.15+this.random()*.65,retarget:0,target:null,step:this.random()*6.28,swing:0,flash:0,stun:0,invulnerable:0,dash:0,dashCooldown:1+this.random()*3,skillCooldown:.4+this.random()*4,kills:0,dead:false,deadTime:0});
+      this.fighters.push({id,teamId:team.id,member,name:team.name,color:team.color,weapon:team.weapon,...spot,hp:100,vx:0,vy:0,face:this.random()>.5?1:-1,angle:0,cooldown:.15+this.random()*.65,retarget:0,target:null,step:this.random()*6.28,swing:0,swingTotal:.48,attackKind:'punch',attackSide:0,attacks:0,spin:0,hurt:0,hurtStrength:0,flash:0,stun:0,invulnerable:0,dash:0,dashCooldown:1+this.random()*3,skillCooldown:.4+this.random()*4,kills:0,dead:false,deadTime:0});
     }
   }
   get alive() { return this.fighters.filter(f => !f.dead); }
@@ -85,7 +85,7 @@ export class Battle {
       return;
     }
     damage = damage*(WEAPONS[attacker.weapon]?.multiplier??1);
-    target.hp = Math.max(0,target.hp-damage); target.flash = .12; target.stun = .09; target.invulnerable = .34;
+    target.hp = Math.max(0,target.hp-damage); target.flash = .12; target.hurt=.36;target.hurtStrength=crit?.9:.45; target.stun = .09; target.invulnerable = .34;
     const dx = target.x-attacker.x,dy = target.y-attacker.y,d = Math.hypot(dx,dy)||1;
     target.vx += dx/d*(crit?145:80); target.vy += dy/d*(crit?145:80);
     this.events.push({type:'hit',fighter:attacker,target,damage:Math.round(damage),crit,area,x:target.x,y:target.y-25});
@@ -98,7 +98,7 @@ export class Battle {
     for (const f of shuffle(alive,this.random)) {
       if (f.dead) continue;
       for (const key of ['cooldown','retarget','dashCooldown','skillCooldown']) f[key] -= dt;
-      for (const key of ['stun','flash','swing','dash','invulnerable']) f[key] = Math.max(0,f[key]-dt);
+      for (const key of ['stun','flash','swing','dash','invulnerable','hurt','spin']) f[key] = Math.max(0,f[key]-dt);
       if (!f.target || f.target.dead || f.retarget <= 0) {
         let nearest = Infinity; f.target = null;
         for (const other of alive) if (!other.dead && other.teamId !== f.teamId) {
@@ -141,13 +141,14 @@ export class Battle {
       f.skillCooldown -= dt*Math.max(0,nearbyEnemies-2)*.7;
       f.step += dt*(speed > 15 ? 13 : 3);
       if (f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
-        f.skillCooldown = 3.5+this.random()*3; f.swing = .24;
+        f.skillCooldown = 3.5+this.random()*3; f.spin=.68;f.swing = f.swingTotal = .68;f.attackKind='spin';f.attackSide=f.attacks++%2;
         const burst = this.random() < .13;
         if (burst) { f.invulnerable = .9; this.events.push({type:'comeback',fighter:f,x:f.x,y:f.y-10}); }
         this.events.push({type:'skill',fighter:f,x:f.x,y:f.y-10});
         for (const other of alive) if (!other.dead && other.teamId !== f.teamId && Math.hypot(f.x-other.x,f.y-other.y) < (burst?84:55)) this.hit(f,other,Math.round((28+this.random()*24)*(burst?2.7:1)),true,true);
       } else if (!target.dead && d < 33 && f.cooldown <= 0 && f.stun <= 0) {
-        f.cooldown = .3+this.random()*.5; f.swing = .18;
+        f.cooldown = .3+this.random()*.5; f.swing = f.swingTotal = .48;f.attackKind='punch';f.attackSide=f.attacks++%2;
+        this.events.push({type:'attack',fighter:f,x:f.x,y:f.y});
         const crit = this.random() < .19;
         this.hit(f,target,Math.round((8+this.random()*12)*(crit?2.3:1)),crit);
       }
