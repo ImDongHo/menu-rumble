@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import {Renderer as FlatRenderer,makeMap} from './renderer.mjs';
 import {MAPS,MAX_FIGHTERS} from './engine.mjs';
 import {createCamera,createFighterBatches,roomBoxes,worldPosition} from './scene-model.mjs';
+import {createTerrainFloor} from './outdoor-model.mjs';
 import {disposeScene} from './resource-cleanup.mjs';
 
 // A tiny code-drawn icon matches the sphere head without loading a paid asset.
@@ -45,11 +46,12 @@ export class Renderer {
     if(this.activeMap===mapId)return;
     if(this.activeMap)this.mapGroups.get(this.activeMap).visible=false;
     if(!this.mapGroups.has(mapId)){
-      const group=new THREE.Group(),map=MAPS.find(m=>m.id===mapId);const boxes=roomBoxes(mapId,map.obstacles);
+      if(this.mapGroups.size>=3){const oldest=this.mapGroups.keys().next().value,group=this.mapGroups.get(oldest);disposeScene(group);this.scene.remove(group);this.mapGroups.delete(oldest)}
+      const group=new THREE.Group(),map=MAPS.find(m=>m.id===mapId);const boxes=roomBoxes(mapId,map.obstacles);if(map.terrain)group.add(createTerrainFloor(map));
       const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xffffff}),boxes.length),dummy=new THREE.Object3D(),color=new THREE.Color();
       boxes.forEach((box,i)=>{dummy.position.set(box.x,box.y,box.z);dummy.scale.set(box.w,box.h,box.d);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,color.set(box.color))});mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;group.add(mesh);this.scene.add(group);this.mapGroups.set(mapId,group);
     }
-    this.mapGroups.get(mapId).visible=true;this.activeMap=mapId;this.scene.background.set(mapId==='moon'?'#34495f':mapId==='sand'?'#cfb890':'#465f4e');
+    this.mapGroups.get(mapId).visible=true;this.activeMap=mapId;this.scene.background.set(MAPS.find(map=>map.id===mapId).backdrop??(mapId==='moon'?'#34495f':mapId==='sand'?'#cfb890':'#465f4e'));
   }
   project(x,y,height=1.9){const point=worldPosition(x,y);this.vector.set(point.x,height,point.z).project(this.camera);return{x:(this.vector.x+1)*384,y:(1-this.vector.y)*240}}
   place(batch,index,x,y,z,w,h,d,rx=0,rz=0){
