@@ -1,0 +1,23 @@
+{
+  "name": "menu-rumble",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "3D automatic menu battles with weapons and simulated win estimates.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "vendor": "node scripts/vendor-three.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

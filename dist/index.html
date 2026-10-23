@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#164b3b">
+  <meta name="description" content="오늘 뭐 먹지? 메뉴를 넣고 작은 3D 캐릭터들의 난투전을 지켜보세요. 마지막 생존 메뉴가 오늘의 메뉴!">
+  <title>메뉴 럼블 — 오늘 메뉴, 한판으로 정하자</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23164b3b'/%3E%3Cpath d='M9 7v9l15 10M7 7v7h7V7M25 7L8 26M23 7h3v8' fill='none' stroke='%23e8cb73' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="swords" viewBox="0 0 24 24"><path d="m4 3 5 2 11 14-2 2L5 9 4 3ZM20 3l-5 2L4 19l2 2L19 9l1-6ZM3 15l6 6m6-18 6 6"/></symbol>
+    <symbol id="sound" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Zm5 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></symbol>
+    <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6"/></symbol>
+    <symbol id="trophy" viewBox="0 0 24 24"><path d="M7 3h10v7a5 5 0 0 1-10 0V3Zm0 2H3v3a4 4 0 0 0 4 4m10-7h4v3a4 4 0 0 1-4 4m-5 3v5m-5 1h10"/></symbol>
+    <symbol id="chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  </defs></svg>
+  <header class="header">
+    <a class="brand" href="./" aria-label="메뉴 럼블 홈"><span class="brand-mark"><svg><use href="#swords"/></svg></span><span>MENU<span class="brand-light"> RUMBLE</span><small>오늘의 메뉴를 건 한판</small></span></a>
+    <nav aria-label="도움 및 설정"><button class="nav-button" id="history-btn"><svg><use href="#clock"/></svg><span>지난 대결</span></button><button class="nav-button" id="help-btn"><span class="help-icon">?</span><span>게임 방법</span></button><span class="nav-divider"></span><button class="icon-button sound-toggle" id="sound-btn" aria-label="효과음 켜기" aria-pressed="false"><svg><use href="#sound"/></svg><span class="mute-line"></span></button></nav>
+  </header>
+  <main>
+    <section class="intro"><div><p class="eyebrow"><span></span> THE TASTIEST BATTLE ROYALE</p><h1>오늘 메뉴, <span>한판으로 정하자.</span><span class="title-spark">✦</span></h1><p class="intro-description">고민은 그만. 메뉴를 넣고, 마지막까지 살아남은 맛을 만나보세요.</p></div><div class="intro-stamp"><svg><use href="#swords"/></svg><span>고민 끝.<br><b>대결 시작!</b></span></div></section>
+    <div class="workspace">
+      <section class="game-column" aria-label="메뉴 난투전 경기장">
+        <div class="arena-top"><div class="arena-heading"><span class="live-dot"></span><b>메뉴 아레나</b><span class="mode-label">FREE FOR ALL</span></div><span class="round-label" id="round-label">ROUND 01</span></div>
+        <div class="arena-frame" id="arena-frame">
+          <canvas id="arena" width="768" height="480" aria-label="위에서 내려다보는 픽셀 경기장. 각 메뉴 캐릭터가 자동으로 싸웁니다."></canvas>
+          <button class="exit-focus" id="exit-focus-btn" hidden aria-label="경기장 크게 보기 닫기">닫기 ×</button>
+          <div class="arena-hud"><div class="map-badge"><span class="map-dot"></span><span id="arena-map-name">숲속 유적</span></div><span class="arena-timer" id="arena-timer">00:00</span></div>
+          <div class="ready-banner" id="ready-banner"><span>READY TO RUMBLE</span><small>오늘의 메뉴가 될 준비, 되셨나요?</small></div>
+          <div class="countdown" id="countdown" hidden aria-live="assertive"></div>
+          <div class="paused-banner" id="paused-banner" hidden>잠깐, 쉬어가는 중<span>계속하기를 누르면 대결이 이어집니다.</span></div>
+          <div class="arena-caption"><span id="arena-caption">작은 용사들, 큰 메뉴 결정.</span><span>3D MINIATURE ARENA</span></div>
+          <div class="result-layer" id="result-layer" hidden><div class="result-card" role="dialog" aria-modal="true" aria-labelledby="winner-title"><span class="winner-eyebrow">WINNER WINNER, DELICIOUS DINNER</span><svg class="winner-trophy"><use href="#trophy"/></svg><p>오늘의 메뉴는</p><h2 id="winner-title"></h2><p id="winner-description" class="winner-description"></p><div class="result-actions"><button class="primary-button" id="rematch-btn"><svg><use href="#refresh"/></svg>한 판 더!</button><button class="secondary-button" id="copy-btn">결과 복사</button></div><button class="text-button" id="close-result-btn">경기장 둘러보기 <span>↗</span></button></div></div>
+        </div>
+        <div class="arena-bottom"><span class="battle-status" id="battle-status"><span class="status-dot"></span><span id="status-text">대기 중</span><span class="alive-text" id="alive-text">8명 참가</span></span><div class="arena-controls"><button id="speed-btn" title="대결 속도 바꾸기" aria-label="대결 속도 1배">1×</button><button id="pause-btn" disabled aria-label="대결 일시정지"><span id="pause-symbol">Ⅱ</span></button><button id="reset-btn" aria-label="대결 초기화" title="대결 초기화"><svg><use href="#refresh"/></svg></button><button id="fullscreen-btn" aria-label="경기장 전체 화면" title="경기장 전체 화면">⛶</button></div></div>
+        <div class="odds-heading"><b>시작 전 추정 승률</b><span id="odds-note" aria-live="polite">가상 전투 계산 중</span></div><div class="roster" id="roster" aria-label="참가 메뉴, 생존 수 및 시작 전 추정 승률"></div>
+        <div class="battle-feed"><span class="feed-label">ARENA NEWS</span><span id="feed-text" aria-live="polite">모두 같은 체력으로 출발해요. 승부는 끝까지 알 수 없죠!</span><span class="feed-spark">✦</span></div>
+        <section class="map-section" aria-labelledby="map-title"><div class="section-line"><h2 id="map-title">어디서 한판 할까요?</h2><span>MAP SELECT <span class="small-line"></span> 03</span></div><div class="map-options" id="map-options"></div></section>
+      </section>
+      <aside class="setup-panel" id="setup-panel"><div class="panel-heading"><div class="panel-icon"><svg><use href="#swords"/></svg></div><div><p class="eyebrow">THE CONTENDERS</p><h2>오늘의 도전자</h2></div><span class="count-badge" id="menu-count">8</span></div><p class="panel-description">먹고 싶은 메뉴를 링 위에 올려보세요.</p><button class="mobile-back text-button" id="mobile-back-btn">↑ 경기장으로 돌아가기</button>
+        <div class="presets" aria-label="메뉴 모음"><button data-preset="lunch" class="active">든든한 한 끼</button><button data-preset="night">야식 타임</button><button data-preset="cafe">카페 한판</button><span class="custom-presets" id="custom-presets"></span><button class="custom-menu-button" id="custom-menu-btn">＋ 내 메뉴 만들기</button></div>
+        <form id="menu-form"><label class="sr-only" for="menu-input">추가할 메뉴 이름</label><div class="input-wrap"><input id="menu-input" placeholder="메뉴 추가하기" autocomplete="off" maxlength="220"><button type="submit" id="add-btn" aria-label="메뉴 추가">+</button></div><p id="input-message" class="input-message" aria-live="polite">예: 치킨*10, 피자*2 · 수량 없이 넣으면 5마리</p></form>
+        <div class="count-help"><span>메뉴별 출전 수를 정해주세요</span><b id="total-fighters">총 40마리 출전</b></div><div class="menu-list" id="menu-list"></div>
+        <button class="random-button" id="random-btn"><span>⚄</span> 뭘 넣을지 모르겠다면? 랜덤 추천 <svg><use href="#arrow"/></svg></button>
+        <div class="setup-footer"><div class="match-info"><span><i></i> 소수도 역전할 수 있는 한판</span><span>최대 160마리</span></div><button class="primary-button start-button" id="start-btn"><svg><use href="#swords"/></svg><span>난투전 시작하기</span><span class="button-arrow">→</span></button><p>승부는 실제 전투로! 출전 수가 승리를 보장하지 않아요.</p></div>
+      </aside>
+    </div>
+    <section class="how-strip"><div><span class="step-number">01</span><span><b>메뉴를 올리고</b><small>고민 중인 메뉴 2개 이상</small></span></div><span class="step-link">····</span><div><span class="step-number">02</span><span><b>한판 붙이고</b><small>작은 용사들의 자동 난투전</small></span></div><span class="step-link">····</span><div><span class="step-number">03</span><span><b>맛있게 먹어요</b><small>최후의 생존자가 오늘의 메뉴</small></span></div><span class="strip-end">고민은 짧게,<br><b>한 끼는 맛있게.</b></span></section>
+  </main>
+  <footer class="footer"><span>MENU RUMBLE <i>✦</i> 작은 난투, 맛있는 결말.</span><span>MADE FOR YOUR NEXT MEAL</span></footer>
+  <dialog id="info-dialog"><button class="dialog-close" aria-label="창 닫기">×</button><div id="dialog-content"></div></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="mobile-bar" aria-label="모바일 게임 컨트롤"><button id="mobile-menu-btn">메뉴 · 수량 <span>↑</span></button><button class="primary-button" id="mobile-start-btn"><svg><use href="#swords"/></svg><span>난투전 시작</span></button></div>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
