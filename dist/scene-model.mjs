@@ -43,13 +43,13 @@ export function roomBoxes(mapId,obstacles){
   return boxes;
 }
 export function createFighterBatches(){
-  const cube=new THREE.BoxGeometry(1,1,1),sphere=new THREE.SphereGeometry(.36,12,8);
-  const colorMaterial=new THREE.MeshLambertMaterial({color:0xffffff,toneMapped:false});
-  const outline=new THREE.MeshBasicMaterial({color:'#172c31',side:THREE.BackSide});
-  const skin=new THREE.MeshLambertMaterial({color:'#f7dfb9'}),eyes=new THREE.MeshBasicMaterial({color:'#343027'});
+  const cube=new THREE.BoxGeometry(1,1,1),sphere=new THREE.SphereGeometry(.5,12,8),round=new THREE.SphereGeometry(.5,8,6),eye=new THREE.CircleGeometry(.5,12),cone=new THREE.ConeGeometry(.5,1,3);
+  const fur=new THREE.MeshLambertMaterial({color:0xffffff,toneMapped:false});
+  const outline=new THREE.MeshBasicMaterial({color:'#253238',side:THREE.BackSide});
+  const cream=new THREE.MeshLambertMaterial({color:'#fff0d7'}),pink=new THREE.MeshLambertMaterial({color:'#edb6aa'}),dark=new THREE.MeshBasicMaterial({color:'#292e35'}),white=new THREE.MeshBasicMaterial({color:'#fffdf4'});
   const silver=new THREE.MeshLambertMaterial({color:'#d9e1df'}),gold=new THREE.MeshLambertMaterial({color:'#d6ae58'}),grip=new THREE.MeshLambertMaterial({color:'#745333'});
-  const definitions={headOutline:[sphere,outline,MAX_FIGHTERS],bodyOutline:[cube,outline,MAX_FIGHTERS],body:[cube,colorMaterial,MAX_FIGHTERS],head:[sphere,skin,MAX_FIGHTERS],arms:[cube,colorMaterial,MAX_FIGHTERS*2],hands:[cube,skin,MAX_FIGHTERS*2],legs:[cube,colorMaterial,MAX_FIGHTERS*2],eyes:[cube,eyes,MAX_FIGHTERS*2],blade:[cube,silver,MAX_FIGHTERS],guard:[cube,gold,MAX_FIGHTERS],grip:[cube,grip,MAX_FIGHTERS]};
+  const definitions={headOutline:[sphere,outline,1],bodyOutline:[sphere,outline,1],body:[sphere,fur,1],head:[sphere,fur,1],belly:[round,cream,1],muzzle:[round,cream,1],nose:[round,dark,1],ears:[round,fur,2],catEars:[cone,fur,2],earInner:[round,pink,2],tail:[round,fur,1],arms:[round,fur,2],hands:[round,cream,2],legs:[round,fur,2],eyes:[eye,dark,2],eyeShine:[eye,white,2],blade:[cube,silver,1],guard:[cube,gold,1],grip:[cube,grip,1]};
   const batches={};
-  for(const[name,args]of Object.entries(definitions)){const mesh=new THREE.InstancedMesh(...args);mesh.name=name;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.count=0;batches[name]=mesh}
+  for(const[name,[geometry,material,parts]]of Object.entries(definitions)){const mesh=new THREE.InstancedMesh(geometry,material,MAX_FIGHTERS*parts);mesh.name=name;mesh.userData.parts=parts;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.count=0;batches[name]=mesh}
   return batches;
 }
