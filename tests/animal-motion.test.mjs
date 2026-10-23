@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../dist/vendor/three.module.js';
 import {Battle,MAX_FIGHTERS} from '../dist/engine.mjs';
-import {animalKind,animalPose,ANIMALS} from '../dist/animal-motion.mjs';
+import {animalKind,animalPose,fighterArm,heldSword,ANIMALS} from '../dist/animal-motion.mjs';
 import {createFighterBatches,createCamera,worldPosition} from '../dist/scene-model.mjs';
 import {fighterScale} from '../dist/display-model.mjs';
 import {disposeScene} from '../dist/resource-cleanup.mjs';
@@ -13,10 +13,10 @@ test('four animal silhouettes and paired face parts fit the full crowd',()=>{
   assert.equal(ANIMALS.length,4);assert.deepEqual([0,1,2,3,4].map(animalKind),[0,1,2,3,0]);
   const batches=createFighterBatches(),scene=new THREE.Scene();
   for(const mesh of Object.values(batches)){assert.equal(mesh.instanceMatrix.count,MAX_FIGHTERS*mesh.userData.parts);scene.add(mesh)}
-  const triangles=Object.values(batches).reduce((sum,mesh)=>sum+mesh.geometry.index.count/3*mesh.instanceMatrix.count,0);
+  const triangles=Object.values(batches).reduce((sum,mesh)=>sum+(mesh.geometry.index?.count??mesh.geometry.attributes.position.count)/3*mesh.instanceMatrix.count,0);
   assert.ok(triangles<500000,'full-crowd geometry budget');
-  assert.equal(batches.body.geometry.type,'SphereGeometry');assert.equal(batches.catEars.geometry.type,'ConeGeometry');
-  assert.equal(batches.earInner.instanceMatrix.count,MAX_FIGHTERS*2);disposeScene(scene);
+  assert.equal(batches.body.geometry.type,'LatheGeometry');assert.equal(batches.catEars.geometry.type,'LatheGeometry');
+  assert.equal(batches.eyes.instanceMatrix.count,MAX_FIGHTERS*2);assert.ok(batches.smile);assert.equal(batches.muzzle,undefined);assert.equal(batches.headOutline,undefined);disposeScene(scene);
 });
 
 test('punches have a clear wind-up, extension and recovery without mutating fighters',()=>{
@@ -37,8 +37,32 @@ test('hurt reactions, full spins and death tumbles are distinct from walking',()
 test('animal ears and oversized paws stay inside the playable mobile crop',()=>{
   const camera=createCamera(),scale=fighterScale(true,40);
   for(const x of[91,677])for(const y of[106,410]){
-    const p=worldPosition(x,y),head=new THREE.Vector3(p.x,1.98*scale,p.z).project(camera);
+    const p=worldPosition(x,y),head=new THREE.Vector3(p.x,2.16*scale,p.z).project(camera);
     assert.ok(Math.abs(head.x)<.84);assert.ok(Math.abs(head.y)<.98);
+  }
+});
+
+test('every sword strike uses the holding hand and sweeps across the body',()=>{
+  for(const attackSide of[0,1]){
+    const f={...fighter(),weapon:'sword',attackSide,cooldown:.02};
+    const back=fighterArm(animalPose(f,0,'running'),1);
+    f.cooldown=.6;f.swing=.48;const p=animalPose(f,0,'running'),cut=fighterArm(p,1);
+    assert.equal(p.leftPunch,0);assert.equal(p.rightPunch,1);
+    assert.ok(back.x-cut.x>.7);assert.ok(cut.z-back.z>.9);assert.ok(cut.pitch-back.pitch>1.5);
+    assert.ok(fighterArm(p,0).z<cut.z-.5,'off hand does not perform the sword attack');
+  }
+});
+
+test('sword handle and blade stay attached throughout idle, wind-up, slash and spin',()=>{
+  for(const swing of[0,.48,.4,.2,.01])for(const spin of[0,.68,.34])for(const cooldown of[.02,.5]){
+    const f={...fighter(),weapon:'sword',swing,spin,cooldown},p=animalPose(f,2,'running'),arm=fighterArm(p,1),s=heldSword(arm);
+    assert.deepEqual([s.x,s.y,s.z],[arm.x,arm.y,arm.z]);
+    const rotation=new THREE.Euler(s.pitch,0,s.roll),axis=new THREE.Vector3(0,1,0).applyEuler(rotation);
+    for(const [prefix,distance]of[['guard',.16],['blade',.66]]){
+      const position=new THREE.Vector3(s[`${prefix}X`]-s.x,s[`${prefix}Y`]-s.y,s[`${prefix}Z`]-s.z);
+      assert.ok(position.distanceTo(axis.clone().multiplyScalar(distance))<1e-12);
+    }
+    const length=Math.hypot(arm.x-arm.shoulderX,arm.y-arm.shoulderY,arm.z-arm.shoulderZ);assert.ok(length>0&&length<1.5);
   }
 });
 

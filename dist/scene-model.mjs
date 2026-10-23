@@ -43,12 +43,16 @@ export function roomBoxes(mapId,obstacles){
   return boxes;
 }
 export function createFighterBatches(){
-  const cube=new THREE.BoxGeometry(1,1,1),sphere=new THREE.SphereGeometry(.5,12,8),round=new THREE.SphereGeometry(.5,8,6),eye=new THREE.CircleGeometry(.5,12),cone=new THREE.ConeGeometry(.5,1,3);
-  const fur=new THREE.MeshLambertMaterial({color:0xffffff,toneMapped:false});
-  const outline=new THREE.MeshBasicMaterial({color:'#253238',side:THREE.BackSide});
-  const cream=new THREE.MeshLambertMaterial({color:'#fff0d7'}),pink=new THREE.MeshLambertMaterial({color:'#edb6aa'}),dark=new THREE.MeshBasicMaterial({color:'#292e35'}),white=new THREE.MeshBasicMaterial({color:'#fffdf4'});
-  const silver=new THREE.MeshLambertMaterial({color:'#d9e1df'}),gold=new THREE.MeshLambertMaterial({color:'#d6ae58'}),grip=new THREE.MeshLambertMaterial({color:'#745333'});
-  const definitions={headOutline:[sphere,outline,1],bodyOutline:[sphere,outline,1],body:[sphere,fur,1],head:[sphere,fur,1],belly:[round,cream,1],muzzle:[round,cream,1],nose:[round,dark,1],ears:[round,fur,2],catEars:[cone,fur,2],earInner:[round,pink,2],tail:[round,fur,1],arms:[round,fur,2],hands:[round,cream,2],legs:[round,fur,2],eyes:[eye,dark,2],eyeShine:[eye,white,2],blade:[cube,silver,1],guard:[cube,gold,1],grip:[cube,grip,1]};
+  const round=new THREE.SphereGeometry(.5,10,8),eye=new THREE.CircleGeometry(.5,12),smile=new THREE.TorusGeometry(.055,.009,4,12,Math.PI);
+  const beanProfile=new THREE.CatmullRomCurve3([[0,.13],[.28,.17],[.43,.34],[.46,.60],[.43,.88],[.435,1.02],[.51,1.17],[.525,1.32],[.46,1.55],[.28,1.70],[0,1.75]].map(([r,y])=>new THREE.Vector3(r,y,0)));
+  const bean=new THREE.LatheGeometry(beanProfile.getPoints(28).map(p=>new THREE.Vector2(Math.max(0,p.x),p.y)),18);bean.scale(1,1,.9);
+  const catProfile=new THREE.CatmullRomCurve3([new THREE.Vector3(0,-.5,0),new THREE.Vector3(.38,-.4,0),new THREE.Vector3(.4,-.22,0),new THREE.Vector3(.24,.14,0),new THREE.Vector3(.075,.44,0),new THREE.Vector3(0,.5,0)]);
+  const catEar=new THREE.LatheGeometry(catProfile.getPoints(10).map(p=>new THREE.Vector2(Math.max(0,p.x),p.y)),10);
+  const bladeShape=new THREE.Shape();bladeShape.moveTo(-.085,-.415);bladeShape.lineTo(-.12,.20);bladeShape.quadraticCurveTo(-.10,.31,0,.415);bladeShape.quadraticCurveTo(.10,.31,.12,.20);bladeShape.lineTo(.085,-.415);bladeShape.closePath();
+  const blade=new THREE.ExtrudeGeometry(bladeShape,{depth:.055,steps:1,bevelEnabled:true,bevelSegments:1,bevelSize:.018,bevelThickness:.015,curveSegments:3});blade.translate(0,0,-.0275);
+  const clay=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,metalness:0,emissive:'#b7aaa0',emissiveIntensity:.12});
+  const dark=new THREE.MeshBasicMaterial({color:'#493b40'}),silver=new THREE.MeshStandardMaterial({color:'#e0eff5',roughness:.65,metalness:.12}),gold=new THREE.MeshStandardMaterial({color:'#e8c46e',roughness:.8}),grip=new THREE.MeshStandardMaterial({color:'#966c52',roughness:1});
+  const definitions={body:[bean,clay,1],ears:[round,clay,2],catEars:[catEar,clay,2],arms:[round,clay,2],hands:[round,clay,2],legs:[round,clay,2],eyes:[eye,dark,2],smile:[smile,dark,1],blade:[blade,silver,1],guard:[round,gold,1],grip:[round,grip,1]};
   const batches={};
   for(const[name,[geometry,material,parts]]of Object.entries(definitions)){const mesh=new THREE.InstancedMesh(geometry,material,MAX_FIGHTERS*parts);mesh.name=name;mesh.userData.parts=parts;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.count=0;batches[name]=mesh}
   return batches;
