@@ -1,5 +1,5 @@
 import{Battle,COLORS,MAPS,parseMenuInput,MAX_FIGHTERS}from'./engine.mjs';
-import{Renderer,drawAvatar}from'./renderer-3d.mjs';
+import{Renderer,drawAvatar}from'./renderer-3d.mjs?v=soft-beans-2';
 import{validatePresetEntries,entriesFromText,makeCustomPreset,readCustomPresets}from'./custom-presets.mjs';
 const $=id=>document.getElementById(id);
 const presets={lunch:['치킨','피자','떡볶이','초밥','삼겹살','햄버거','파스타','국밥'],night:['치킨','족발','보쌈','떡볶이','피자','곱창','라면','닭발'],cafe:['아메리카노','카페라떼','말차라떼','밀크티','초코라떼','딸기라떼','레몬에이드','바닐라라떼']};

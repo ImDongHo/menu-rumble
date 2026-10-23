@@ -44,8 +44,8 @@ test('arena horizontal lines stay level across the screen',()=>{
     assert.ok(right.x>left.x);
   }
 });
-test('instanced character parts cover 160 members and heads are sphere geometry',()=>{
-  const batches=createFighterBatches();assert.equal(batches.head.geometry.type,'SphereGeometry');
+test('instanced character parts cover 160 members with seamless rounded bean bodies',()=>{
+  const batches=createFighterBatches();assert.equal(batches.body.geometry.type,'LatheGeometry');
   assert.equal(batches.body.instanceMatrix.count,MAX_FIGHTERS);assert.equal(batches.legs.instanceMatrix.count,MAX_FIGHTERS*2);
   assert.ok(batches.blade.isInstancedMesh);
   for(const mesh of Object.values(batches)){mesh.dispose();mesh.geometry.dispose();mesh.material.dispose()}
