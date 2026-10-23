@@ -3,7 +3,7 @@ import * as THREE from './vendor/three.module.js';
 import {Renderer as FlatRenderer,makeMap} from './renderer.mjs';
 import {MAPS,MAX_FIGHTERS} from './engine.mjs';
 import {createCamera,createFighterBatches,roomBoxes,worldPosition} from './scene-model.mjs?v=soft-beans-2';
-import {createTerrainFloor} from './outdoor-model.mjs';
+import {createTerrainFloor,createFlatBackdrop} from './outdoor-model.mjs';
 import {fighterScale} from './display-model.mjs';
 import {animalKind,animalPose,fighterArm,heldSword} from './animal-motion.mjs?v=soft-beans-2';
 import {disposeScene} from './resource-cleanup.mjs';
@@ -63,7 +63,7 @@ export class Renderer {
         const geometry=new THREE.BoxGeometry(2.2,3.35,3.0),material=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:true});
         for(const obstacle of map.obstacles){const p=artWorldPosition(obstacle.x,obstacle.y),mesh=new THREE.Mesh(geometry,material);mesh.position.set(p.x,1.675,p.z);mesh.renderOrder=-10;group.add(mesh)}
       }else{
-        const boxes=roomBoxes(mapId,map.obstacles);if(map.terrain)group.add(createTerrainFloor(map));
+        const boxes=roomBoxes(mapId,map.obstacles);if(map.terrain)group.add(createTerrainFloor(map));if(map.layout&&this.backgrounds)group.add(createFlatBackdrop(map));
         const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xffffff}),boxes.length),dummy=new THREE.Object3D(),color=new THREE.Color();
         boxes.forEach((box,i)=>{dummy.position.set(box.x,box.y,box.z);dummy.scale.set(box.w,box.h,box.d);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,color.set(box.color))});mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;group.add(mesh);
       }
@@ -137,6 +137,7 @@ export class Renderer {
     for(const f of battle.fighters)if(f.dead)this.deathAges[f.id]+=dt;
     this.actors(battle);
     this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/(this.activeMap===ART_MAP_ID?18:20),1,battle.ring/(this.activeMap===ART_MAP_ID?19.8:33));
+    const center=battle.map.ringCenter??{x:384,y:252},ringPoint=this.activeMap===ART_MAP_ID?artWorldPosition(center.x,center.y):worldPosition(center.x,center.y);this.safeRing.position.set(ringPoint.x,0,ringPoint.z);
     this.gl.render(this.scene,this.camera);
     const c=this.c;c.clearRect(0,0,768,480);c.textAlign='center';
     const scale=fighterScale(this.mobile,battle.fighters.length);

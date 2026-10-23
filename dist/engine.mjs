@@ -1,4 +1,5 @@
-import {terrainContains,constrainTerrain,terrainWaypoint} from './terrain.mjs';
+import {terrainContains,constrainTerrain,terrainWaypoint,terrainSegmentClear} from './terrain.mjs';
+import {FLAT_MAPS} from './flat-maps.mjs';
 export const COLORS = ['#ec6259','#ed9c3e','#ee79a3','#479cdd','#a67b54','#e1bd39','#a884d3','#60aa59','#39b6a2','#ca799b','#7298b3','#b0ba4d','#c17a49','#7e8ed0','#be9992','#8fa26b'];
 export const MAX_FIGHTERS = 160;
 export const WEAPONS = {none:{name:'맨손',multiplier:1},sword:{name:'짧은 검',multiplier:1.1}};
@@ -9,7 +10,8 @@ export const MAPS = [
   {id:'moon',name:'달빛 정원',english:'MOONLIT GARDEN',subtitle:'달빛이 비추는 마지막 승부',ground:'#355a71',dark:'#293d5a',light:'#4f7d89',floor:'#88a8b1',tile:'#9ab8c0',edge:'#526d83',accent:'#d2c9e9',obstacles:[{x:240,y:190,r:17},{x:528,y:190,r:17},{x:240,y:314,r:17},{x:528,y:314,r:17}]},
   {id:'ice',name:'얼음 호수',english:'FROZEN CROSSING',subtitle:'두 빙판을 잇는 좁은 다리',ground:'#3a7693',dark:'#28617e',light:'#76b9cb',floor:'#caeef1',tile:'#aedfe7',edge:'#689fae',accent:'#f0ffff',backdrop:'#6d9ba9',terrain:[[76,90],[320,90],[320,210],[448,210],[448,90],[692,90],[692,414],[448,414],[448,294],[320,294],[320,414],[76,414]],obstacles:[{x:204,y:178,r:22},{x:564,y:326,r:22}]},
   {id:'lava',name:'용암 분화구',english:'EMBER CALDERA',subtitle:'중앙 바위를 둘러싼 순환 지형',ground:'#b6472e',dark:'#622a28',light:'#ed9b4d',floor:'#645259',tile:'#786369',edge:'#423c49',accent:'#ffd47a',backdrop:'#442f39',terrain:[[76,150],[154,90],[614,90],[692,150],[692,354],[614,414],[154,414],[76,354]],obstacles:[{x:384,y:252,r:43},{x:202,y:174,r:20},{x:566,y:330,r:20}]},
-  {id:'ship',name:'해적선 갑판',english:'CORSAIR DECK',subtitle:'화물 사이로 이어지는 좁은 갑판',ground:'#347a91',dark:'#23516c',light:'#65adba',floor:'#bb8a54',tile:'#cc9d66',edge:'#654b3b',accent:'#f3dfad',backdrop:'#4c8b9e',terrain:[[76,160],[180,90],[588,90],[692,160],[692,350],[588,414],[180,414],[76,350]],obstacles:[{x:244,y:178,r:23},{x:524,y:178,r:23},{x:244,y:326,r:23},{x:524,y:326,r:23}]}
+  {id:'ship',name:'해적선 갑판',english:'CORSAIR DECK',subtitle:'화물 사이로 이어지는 좁은 갑판',ground:'#347a91',dark:'#23516c',light:'#65adba',floor:'#bb8a54',tile:'#cc9d66',edge:'#654b3b',accent:'#f3dfad',backdrop:'#4c8b9e',terrain:[[76,160],[180,90],[588,90],[692,160],[692,350],[588,414],[180,414],[76,350]],obstacles:[{x:244,y:178,r:23},{x:524,y:178,r:23},{x:244,y:326,r:23},{x:524,y:326,r:23}]},
+  ...FLAT_MAPS
 ];
 
 export function seededRandom(seed) {
@@ -53,7 +55,7 @@ export class Battle {
     this.elapsed = 0; this.state = 'ready'; this.events = []; this.eliminations = []; this.winner = null;
     this.teams = menus.map((m,i) => ({...m,weapon:m.weapon==='sword'?'sword':'none',id:i,color:COLORS[i]}));
     const positions = [];
-    for (let y = 115; y <= 404; y += 27) for (let x = 101; x <= 668; x += 29) {
+    for (let y = 115; y <= 404; y += this.map.layout?24:27) for (let x = 101; x <= 668; x += this.map.layout?24:29) {
       if (terrainContains(this.map,x,y,12)&&this.map.obstacles.every(o => Math.hypot(x-o.x,y-o.y) > o.r+14)) positions.push({x,y});
     }
     if(positions.length<menus.reduce((sum,m)=>sum+m.count,0))throw new RangeError('경기장에 출전할 공간이 부족합니다.');
@@ -78,6 +80,7 @@ export class Battle {
   }
   hit(attacker,target,damage,crit = false,area = false) {
     if (target.dead || target.teamId === attacker.teamId || target.invulnerable > 0) return;
+    if(this.map.layout&&!terrainSegmentClear(this.map,attacker,target,0))return;
     // Brief invulnerability stops a surrounding crowd from landing every hit at once.
     // Equal dodge and area-skill chances let a lone survivor occasionally turn a battle.
     if (this.random() < .24) {
@@ -153,7 +156,8 @@ export class Battle {
         const crit = this.random() < .19;
         this.hit(f,target,Math.round((8+this.random()*12)*(crit?2.3:1)),crit);
       }
-      if (this.ring !== null && Math.hypot(f.x-384,(f.y-252)*1.65) > this.ring) {
+      const ringCenter=this.map.ringCenter??{x:384,y:252};
+      if (this.ring !== null && Math.hypot(f.x-ringCenter.x,(f.y-ringCenter.y)*1.65) > this.ring) {
         f.hp = Math.max(0,f.hp-dt*16);
         if (f.hp <= 0) this.eliminate(f);
       }
