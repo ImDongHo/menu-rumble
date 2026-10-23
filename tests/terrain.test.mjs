@@ -10,7 +10,7 @@ import {disposeScene} from '../dist/resource-cleanup.mjs';
 
 test('the ice bridge, tapered deck and central caldera have distinct playable shapes',()=>{
   const ice=MAPS.find(map=>map.id==='ice'),ship=MAPS.find(map=>map.id==='ship'),lava=MAPS.find(map=>map.id==='lava');
-  assert.equal(MAPS.length,6);
+  assert.equal(MAPS.length,7);
   assert.ok(terrainContains(ice,384,252,8));assert.ok(!terrainContains(ice,384,150,8));
   assert.ok(terrainContains(ship,384,120,8));assert.ok(!terrainContains(ship,100,110,8));
   assert.ok(lava.obstacles.some(o=>o.x===384&&o.y===252&&o.r>40));
@@ -50,7 +50,7 @@ test('3D terrain uses the same outlines and obstacle centers as combat',()=>{
   }
 });
 
-test('switching among six maps keeps only three GPU map groups and disposes evicted maps',()=>{
+test('switching among seven maps keeps only three GPU map groups and disposes evicted maps',()=>{
   const target={scene:new THREE.Scene(),mapGroups:new Map(),activeMap:null};target.scene.background=new THREE.Color();
   let removed=0;
   for(let i=0;i<24;i++){

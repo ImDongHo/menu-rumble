@@ -1,3 +1,4 @@
+import {ART_MAP_ID,ART_VIEW,artWorldPosition} from './art-map.mjs';
 import * as THREE from './vendor/three.module.js';
 import {Renderer as FlatRenderer,makeMap} from './renderer.mjs';
 import {MAPS,MAX_FIGHTERS} from './engine.mjs';
@@ -33,12 +34,13 @@ export class Renderer {
     }
     surface.id=canvas.id;surface.setAttribute('aria-label','말랑한 동물 캐릭터들이 자동으로 싸우는 입체 경기장');surface.width=768;surface.height=480;canvas.replaceWith(surface);this.canvas=surface;surface.classList.add('arena-3d');
     this.gl.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));this.gl.setSize(768,480,false);this.gl.outputColorSpace=THREE.SRGBColorSpace;this.gl.toneMapping=THREE.ACESFilmicToneMapping;this.gl.toneMappingExposure=1;
-    this.scene=new THREE.Scene();this.camera=createCamera();this.scene.background=new THREE.Color('#465f4e');
+    this.scene=new THREE.Scene();this.camera=createCamera();this.standardCamera=this.camera;this.mapArtTextures=new Map();this.scene.background=new THREE.Color('#465f4e');
     this.scene.add(new THREE.HemisphereLight('#fff7de','#687563',1.2));
     const sun=new THREE.DirectionalLight('#fff1d5',2);sun.position.set(-9,18,10);this.scene.add(sun);
     this.batches=createFighterBatches();for(const mesh of Object.values(this.batches))this.scene.add(mesh);
     this.mapGroups=new Map();this.activeMap=null;this.lastBattle=null;this.time=0;this.effects=true;this.particles=[];this.numbers=[];this.rings=[];this.mobile=false;this.lowPower=false;
     this.backgrounds=new Map(MAPS.map(map=>[map.id,makeMap(map.id)]));
+    for(const [id,canvas]of this.backgrounds)canvas.addEventListener('mapartready',()=>{const texture=this.mapArtTextures.get(id);if(texture)texture.needsUpdate=true});
     const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=32;const c=shadowCanvas.getContext('2d');const radial=c.createRadialGradient(16,16,2,16,16,15);radial.addColorStop(0,'rgba(22,28,18,.4)');radial.addColorStop(1,'rgba(22,28,18,0)');c.fillStyle=radial;c.fillRect(0,0,32,32);
     this.shadows=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),MAX_FIGHTERS);this.shadows.frustumCulled=false;this.shadows.renderOrder=1;this.scene.add(this.shadows);
     this.overlay=document.createElement('canvas');this.overlay.width=1536;this.overlay.height=960;this.overlay.className='arena-overlay';this.overlay.setAttribute('aria-hidden','true');surface.after(this.overlay);this.c=this.overlay.getContext('2d');this.c.scale(2,2);
@@ -56,13 +58,28 @@ export class Renderer {
     if(this.activeMap)this.mapGroups.get(this.activeMap).visible=false;
     if(!this.mapGroups.has(mapId)){
       if(this.mapGroups.size>=3){const oldest=this.mapGroups.keys().next().value,group=this.mapGroups.get(oldest);disposeScene(group);this.scene.remove(group);this.mapGroups.delete(oldest)}
-      const group=new THREE.Group(),map=MAPS.find(m=>m.id===mapId);const boxes=roomBoxes(mapId,map.obstacles);if(map.terrain)group.add(createTerrainFloor(map));
-      const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xffffff}),boxes.length),dummy=new THREE.Object3D(),color=new THREE.Color();
-      boxes.forEach((box,i)=>{dummy.position.set(box.x,box.y,box.z);dummy.scale.set(box.w,box.h,box.d);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,color.set(box.color))});mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;group.add(mesh);this.scene.add(group);this.mapGroups.set(mapId,group);
+      const group=new THREE.Group(),map=MAPS.find(m=>m.id===mapId);
+      if(map.art){
+        const geometry=new THREE.BoxGeometry(2.2,3.35,3.0),material=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:true});
+        for(const obstacle of map.obstacles){const p=artWorldPosition(obstacle.x,obstacle.y),mesh=new THREE.Mesh(geometry,material);mesh.position.set(p.x,1.675,p.z);mesh.renderOrder=-10;group.add(mesh)}
+      }else{
+        const boxes=roomBoxes(mapId,map.obstacles);if(map.terrain)group.add(createTerrainFloor(map));
+        const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xffffff}),boxes.length),dummy=new THREE.Object3D(),color=new THREE.Color();
+        boxes.forEach((box,i)=>{dummy.position.set(box.x,box.y,box.z);dummy.scale.set(box.w,box.h,box.d);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,color.set(box.color))});mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;group.add(mesh);
+      }
+      this.scene.add(group);this.mapGroups.set(mapId,group);
     }
-    this.mapGroups.get(mapId).visible=true;this.activeMap=mapId;this.scene.background.set(MAPS.find(map=>map.id===mapId).backdrop??(mapId==='moon'?'#34495f':mapId==='sand'?'#cfb890':'#465f4e'));
+    this.mapGroups.get(mapId).visible=true;this.activeMap=mapId;
+    this.standardCamera??=this.camera??createCamera();
+    const background=this.backgrounds?.get(mapId);
+    if(mapId===ART_MAP_ID){
+      if(!this.artCamera){const h=ART_VIEW.halfHeight;this.artCamera=new THREE.OrthographicCamera(-h*768/480,h*768/480,h,-h,.1,100);this.artCamera.position.set(0,ART_VIEW.cameraY,ART_VIEW.cameraZ);this.artCamera.lookAt(0,ART_VIEW.targetY,0);this.artCamera.updateMatrixWorld()}
+      this.camera=this.artCamera;
+      if(background){if(!this.mapArtTextures.has(mapId)){const texture=new THREE.CanvasTexture(background);texture.colorSpace=THREE.SRGBColorSpace;this.mapArtTextures.set(mapId,texture)}this.scene.background=this.mapArtTextures.get(mapId)}else this.scene.background=new THREE.Color('#94a080');
+    }else{this.camera=this.standardCamera;this.scene.background=new THREE.Color(MAPS.find(map=>map.id===mapId).backdrop??(mapId==='moon'?'#34495f':mapId==='sand'?'#cfb890':'#465f4e'))}
+
   }
-  project(x,y,height=1.9){const point=worldPosition(x,y);this.vector.set(point.x,height,point.z).project(this.camera);return{x:(this.vector.x+1)*384,y:(1-this.vector.y)*240}}
+  project(x,y,height=1.9){const point=this.activeMap===ART_MAP_ID?artWorldPosition(x,y):worldPosition(x,y);this.vector.set(point.x,height,point.z).project(this.camera);return{x:(this.vector.x+1)*384,y:(1-this.vector.y)*240}}
   place(batch,index,x,y,z,w,h,d,rx=0,rz=0,ry=0){
     this.part.position.set(x,y,z);this.part.rotation.set(rx,ry,rz);this.part.scale.set(w,h,d);this.part.updateMatrix();this.matrix.multiplyMatrices(this.root.matrix,this.part.matrix);batch.setMatrixAt(index,this.matrix);
   }
@@ -71,7 +88,7 @@ export class Renderer {
     for(const mesh of Object.values(b))mesh.count=n*mesh.userData.parts;
     this.shadows.count=n;this.teamRings.count=n;
     for(const f of battle.fighters){
-      const id=f.id,point=worldPosition(f.x,f.y),kind=animalKind(f.teamId),dead=f.dead;
+      const id=f.id,point=this.activeMap===ART_MAP_ID?artWorldPosition(f.x,f.y):worldPosition(f.x,f.y),kind=animalKind(f.teamId),dead=f.dead;
       const deathAge=this.deathAges?.[id]??Math.max(0,battle.elapsed-f.deadTime);
       const vanished=dead&&deathAge>1.1,p=animalPose(f,this.time,battle.state,this.pose||(this.pose={}),dead?f.deadTime+deathAge:battle.elapsed);
       const hx=0,hy=1.24;
@@ -119,7 +136,7 @@ export class Renderer {
     if(this.lastBattle!==battle){this.rings=[];this.deathAges.fill(0);this.lastBattle=battle}
     for(const f of battle.fighters)if(f.dead)this.deathAges[f.id]+=dt;
     this.actors(battle);
-    this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/20,1,battle.ring/33);
+    this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/(this.activeMap===ART_MAP_ID?18:20),1,battle.ring/(this.activeMap===ART_MAP_ID?19.8:33));
     this.gl.render(this.scene,this.camera);
     const c=this.c;c.clearRect(0,0,768,480);c.textAlign='center';
     const scale=fighterScale(this.mobile,battle.fighters.length);
@@ -149,7 +166,7 @@ export class Renderer {
     this.canvas.removeEventListener('webglcontextlost',this.onContextLost);
     this.canvas.removeEventListener('webglcontextrestored',this.onContextRestored);
     disposeScene(this.scene);this.gl.dispose();this.gl.forceContextLoss();
-    this.mapGroups.clear();this.backgrounds.clear();this.lastBattle=null;
+    this.mapGroups.clear();for(const canvas of this.backgrounds.values())canvas.cancelMapArt?.();this.backgrounds.clear();if(this.mapArtTextures){for(const texture of this.mapArtTextures.values())texture.dispose();this.mapArtTextures.clear()}this.lastBattle=null;
     this.particles=[];this.numbers=[];this.rings=[];this.overlay.remove();
   }
 }
