@@ -8,6 +8,7 @@
   <title>메뉴 럼블 — 오늘 메뉴, 한판으로 정하자</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23164b3b'/%3E%3Cpath d='M9 7v9l15 10M7 7v7h7V7M25 7L8 26M23 7h3v8' fill='none' stroke='%23e8cb73' stroke-width='3'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./clean-ui.css">
 </head>
 <body>
   <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -27,19 +28,23 @@
     <section class="intro"><div><p class="eyebrow"><span></span> THE TASTIEST BATTLE ROYALE</p><h1>오늘 메뉴, <span>한판으로 정하자.</span><span class="title-spark">✦</span></h1><p class="intro-description">고민은 그만. 메뉴를 넣고, 마지막까지 살아남은 맛을 만나보세요.</p></div><div class="intro-stamp"><svg><use href="#swords"/></svg><span>고민 끝.<br><b>대결 시작!</b></span></div></section>
     <div class="workspace">
       <section class="game-column" aria-label="메뉴 난투전 경기장">
+        <div class="arena-shell" id="arena-shell">
         <div class="arena-top"><div class="arena-heading"><span class="live-dot"></span><b>메뉴 아레나</b><span class="mode-label">FREE FOR ALL</span></div><span class="round-label" id="round-label">ROUND 01</span></div>
+        <div class="legend-heading">참가 팀 <span>색상 · 메뉴 · 남은 수</span></div>
+        <div class="roster arena-legend" id="roster" aria-label="팀 색상, 메뉴 이름 및 남은 수 범례"></div>
         <div class="arena-frame" id="arena-frame">
           <canvas id="arena" width="768" height="480" aria-label="위에서 내려다보는 픽셀 경기장. 각 메뉴 캐릭터가 자동으로 싸웁니다."></canvas>
           <button class="exit-focus" id="exit-focus-btn" hidden aria-label="경기장 크게 보기 닫기">닫기 ×</button>
           <div class="arena-hud"><div class="map-badge"><span class="map-dot"></span><span id="arena-map-name">숲속 유적</span></div><span class="arena-timer" id="arena-timer">00:00</span></div>
-          <div class="ready-banner" id="ready-banner"><span>READY TO RUMBLE</span><small>오늘의 메뉴가 될 준비, 되셨나요?</small></div>
+          <div class="ready-banner" id="ready-banner"><span>준비 완료</span><small>시작을 누르면 자동으로 대결해요</small></div>
           <div class="countdown" id="countdown" hidden aria-live="assertive"></div>
           <div class="paused-banner" id="paused-banner" hidden>잠깐, 쉬어가는 중<span>계속하기를 누르면 대결이 이어집니다.</span></div>
           <div class="arena-caption"><span id="arena-caption">작은 용사들, 큰 메뉴 결정.</span><span>3D MINIATURE ARENA</span></div>
           <div class="result-layer" id="result-layer" hidden><div class="result-card" role="dialog" aria-modal="true" aria-labelledby="winner-title"><span class="winner-eyebrow">WINNER WINNER, DELICIOUS DINNER</span><svg class="winner-trophy"><use href="#trophy"/></svg><p>오늘의 메뉴는</p><h2 id="winner-title"></h2><p id="winner-description" class="winner-description"></p><div class="result-actions"><button class="primary-button" id="rematch-btn"><svg><use href="#refresh"/></svg>한 판 더!</button><button class="secondary-button" id="copy-btn">결과 복사</button></div><button class="text-button" id="close-result-btn">경기장 둘러보기 <span>↗</span></button></div></div>
         </div>
-        <div class="arena-bottom"><span class="battle-status" id="battle-status"><span class="status-dot"></span><span id="status-text">대기 중</span><span class="alive-text" id="alive-text">8명 참가</span></span><div class="arena-controls"><button id="speed-btn" title="대결 속도 바꾸기" aria-label="대결 속도 1배">1×</button><button id="pause-btn" disabled aria-label="대결 일시정지"><span id="pause-symbol">Ⅱ</span></button><button id="reset-btn" aria-label="대결 초기화" title="대결 초기화"><svg><use href="#refresh"/></svg></button><button id="fullscreen-btn" aria-label="경기장 전체 화면" title="경기장 전체 화면">⛶</button></div></div>
-        <div class="odds-heading"><b>시작 전 추정 승률</b><span id="odds-note" aria-live="polite">가상 전투 계산 중</span></div><div class="roster" id="roster" aria-label="참가 메뉴, 생존 수 및 시작 전 추정 승률"></div>
+        <div class="arena-bottom"><span class="battle-status" id="battle-status"><span class="status-dot"></span><span id="status-text">대기 중</span><span class="alive-text" id="alive-text">8명 참가</span></span><div class="arena-controls"><button id="arena-start-btn" class="arena-start" type="button">시작</button><button id="speed-btn" title="대결 속도 바꾸기" aria-label="대결 속도 1배">1×</button><button id="pause-btn" disabled aria-label="대결 일시정지"><span id="pause-symbol">Ⅱ</span></button><button id="reset-btn" aria-label="대결 초기화" title="대결 초기화"><svg><use href="#refresh"/></svg></button><button id="fullscreen-btn" aria-label="경기장 전체 화면" title="경기장 전체 화면">⛶ <span>크게 보기</span></button></div></div>
+        </div>
+        <div class="odds-heading"><b>승률 안내</b><span id="odds-note" aria-live="polite">가상 전투 계산 중</span></div>
         <div class="battle-feed"><span class="feed-label">ARENA NEWS</span><span id="feed-text" aria-live="polite">모두 같은 체력으로 출발해요. 승부는 끝까지 알 수 없죠!</span><span class="feed-spark">✦</span></div>
         <section class="map-section" aria-labelledby="map-title"><div class="section-line"><h2 id="map-title">어디서 한판 할까요?</h2><span>MAP SELECT <span class="small-line"></span> <span id="map-count">06</span></span></div><div class="map-options" id="map-options"></div></section>
       </section>

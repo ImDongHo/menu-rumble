@@ -3,6 +3,7 @@ import {Renderer as FlatRenderer,makeMap} from './renderer.mjs';
 import {MAPS,MAX_FIGHTERS} from './engine.mjs';
 import {createCamera,createFighterBatches,roomBoxes,worldPosition} from './scene-model.mjs';
 import {createTerrainFloor} from './outdoor-model.mjs';
+import {fighterScale} from './display-model.mjs';
 import {disposeScene} from './resource-cleanup.mjs';
 
 // A tiny code-drawn icon matches the sphere head without loading a paid asset.
@@ -19,12 +20,12 @@ export class Renderer {
   constructor(canvas){
     const surface=document.createElement('canvas');
     try{
-      this.gl=new THREE.WebGLRenderer({canvas:surface,antialias:false,powerPreference:'high-performance',alpha:false});
+      this.gl=new THREE.WebGLRenderer({canvas:surface,antialias:true,powerPreference:'high-performance',alpha:false});
     }catch{
       return new FlatRenderer(canvas);
     }
-    surface.id=canvas.id;surface.setAttribute('aria-label','구형 머리 캐릭터들이 자동으로 싸우는 입체 경기장');surface.width=768;surface.height=480;canvas.replaceWith(surface);this.canvas=surface;
-    this.gl.setPixelRatio(1);this.gl.setSize(768,480,false);this.gl.outputColorSpace=THREE.SRGBColorSpace;this.gl.toneMapping=THREE.ACESFilmicToneMapping;this.gl.toneMappingExposure=1;
+    surface.id=canvas.id;surface.setAttribute('aria-label','구형 머리 캐릭터들이 자동으로 싸우는 입체 경기장');surface.width=768;surface.height=480;canvas.replaceWith(surface);this.canvas=surface;surface.classList.add('arena-3d');
+    this.gl.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));this.gl.setSize(768,480,false);this.gl.outputColorSpace=THREE.SRGBColorSpace;this.gl.toneMapping=THREE.ACESFilmicToneMapping;this.gl.toneMappingExposure=1;
     this.scene=new THREE.Scene();this.camera=createCamera();this.scene.background=new THREE.Color('#465f4e');
     this.scene.add(new THREE.HemisphereLight('#fff7de','#687563',1.2));
     const sun=new THREE.DirectionalLight('#fff1d5',2);sun.position.set(-9,18,10);this.scene.add(sun);
@@ -33,7 +34,8 @@ export class Renderer {
     this.backgrounds=new Map(MAPS.map(map=>[map.id,makeMap(map.id)]));
     const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=32;const c=shadowCanvas.getContext('2d');const radial=c.createRadialGradient(16,16,2,16,16,15);radial.addColorStop(0,'rgba(22,28,18,.4)');radial.addColorStop(1,'rgba(22,28,18,0)');c.fillStyle=radial;c.fillRect(0,0,32,32);
     this.shadows=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}),MAX_FIGHTERS);this.shadows.frustumCulled=false;this.shadows.renderOrder=1;this.scene.add(this.shadows);
-    this.overlay=document.createElement('canvas');this.overlay.width=768;this.overlay.height=480;this.overlay.className='arena-overlay';this.overlay.setAttribute('aria-hidden','true');surface.after(this.overlay);this.c=this.overlay.getContext('2d');
+    this.overlay=document.createElement('canvas');this.overlay.width=1536;this.overlay.height=960;this.overlay.className='arena-overlay';this.overlay.setAttribute('aria-hidden','true');surface.after(this.overlay);this.c=this.overlay.getContext('2d');this.c.scale(2,2);
+    this.teamRings=new THREE.InstancedMesh(new THREE.RingGeometry(.34,.51,24),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,depthWrite:false}),MAX_FIGHTERS);this.teamRings.frustumCulled=false;this.scene.add(this.teamRings);
     this.root=new THREE.Object3D();this.part=new THREE.Object3D();this.matrix=new THREE.Matrix4();this.vector=new THREE.Vector3();this.color=new THREE.Color();
     const points=[];for(let i=0;i<=64;i++){const a=i/64*Math.PI*2;points.push(new THREE.Vector3(Math.cos(a),.09,Math.sin(a)))}
     this.safeRing=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#ffdb94',transparent:true,opacity:.8}));this.safeRing.visible=false;this.scene.add(this.safeRing);
@@ -60,13 +62,14 @@ export class Renderer {
   actors(battle){
     const b=this.batches,n=battle.fighters.length;
     for(const[name,mesh]of Object.entries(b))mesh.count=['arms','hands','legs','eyes'].includes(name)?n*2:n;
-    this.shadows.count=n;
+    this.shadows.count=n;this.teamRings.count=n;const scale=fighterScale(this.mobile,n);
     for(const f of battle.fighters){
       const id=f.id,point=worldPosition(f.x,f.y),dead=f.dead;
       const vanished=dead&&battle.elapsed-f.deadTime>1.1;
       const bob=dead?0:Math.max(0,Math.sin(f.step||this.time*2))*.045;
-      this.root.position.set(point.x,dead?.15:bob,point.z);this.root.rotation.set(0,battle.state==='ready'?.2+Math.sin(f.id)*.25:Math.PI/2-f.angle,dead?Math.PI/2:0);this.root.scale.setScalar(vanished?0:1);this.root.updateMatrix();
+      this.root.position.set(point.x,dead?.15:bob,point.z);this.root.rotation.set(0,battle.state==='ready'?.2+Math.sin(f.id)*.25:Math.PI/2-f.angle,dead?Math.PI/2:0);this.root.scale.setScalar(vanished?0:scale);this.root.updateMatrix();
       const walk=dead?0:Math.sin(f.step||this.time*2)*.45,swing=f.swing>0?Math.sin(f.swing/.24*Math.PI)*1.35:walk*.55;
+      this.place(b.headOutline,id,0,1.28,0,1.12,1.12,1.12);this.place(b.bodyOutline,id,0,.7,0,.49,.56,.36);
       this.place(b.body,id,0,.7,0,.42,.5,.29);this.place(b.head,id,0,1.28,0,1,1,1);
       for(let side=0;side<2;side++){const s=side?1:-1,index=id*2+side,armAngle=side?swing:-walk*.55;
         this.place(b.arms,index,s*.31,.73,Math.sin(armAngle)*.13,.16,.4,.19,armAngle);
@@ -81,16 +84,17 @@ export class Renderer {
       this.color.set(f.flash>0?'#fff4c4':f.color);b.body.setColorAt(id,this.color);
       b.arms.setColorAt(id*2,this.color);b.arms.setColorAt(id*2+1,this.color);this.color.multiplyScalar(.68);b.legs.setColorAt(id*2,this.color);b.legs.setColorAt(id*2+1,this.color);
       this.part.position.set(point.x,.1,point.z);this.part.rotation.set(-Math.PI/2,0,0);this.part.scale.set(vanished?0:.95,vanished?0:.7,1);this.part.updateMatrix();this.shadows.setMatrixAt(id,this.part.matrix);
+      this.part.position.set(point.x,.145,point.z);this.part.scale.setScalar(dead?0:scale*1.1);this.part.updateMatrix();this.teamRings.setMatrixAt(id,this.part.matrix);this.teamRings.setColorAt(id,this.color.set(f.color));
     }
-    for(const mesh of Object.values(b)){mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true}this.shadows.instanceMatrix.needsUpdate=true;
+    for(const mesh of Object.values(b)){mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true}this.shadows.instanceMatrix.needsUpdate=true;this.teamRings.instanceMatrix.needsUpdate=true;this.teamRings.instanceColor.needsUpdate=true;
   }
   event(e){
     const p=this.project(e.x,e.y+(e.type==='hit'?25:0),1.6);
-    if(e.type==='hit'||e.type==='dodge')this.numbers.push({x:p.x,y:p.y,text:e.type==='dodge'?'회피':String(e.damage)+(e.crit?'!':''),life:.65,crit:e.crit});
+    if(e.type==='hit'&&e.crit)this.numbers.push({x:p.x,y:p.y,text:e.type==='dodge'?'회피':String(e.damage)+(e.crit?'!':''),life:.65,crit:e.crit});
     if(e.type==='hit'||e.type==='eliminate')for(let i=0;i<(this.lowPower?3:7);i++)this.particles.push({x:p.x,y:p.y,vx:(Math.random()-.5)*65,vy:-Math.random()*45,life:.4,color:e.type==='eliminate'?e.fighter.color:'#ffe7a4'});
     if(e.type==='skill'){const screen=this.project(e.fighter.x,e.fighter.y,.1);this.rings.push({x:screen.x,y:screen.y,life:.35})}
     if(e.type==='win')for(let i=0;i<(this.lowPower?30:70);i++)this.particles.push({x:100+Math.random()*568,y:Math.random()*80,vx:(Math.random()-.5)*30,vy:30+Math.random()*40,life:4,color:['#efca74','#cfdb91','#eda181'][i%3]});
-    this.particles=this.particles.slice(this.lowPower?-90:-200);this.numbers=this.numbers.slice(-35);this.rings=this.rings.slice(this.lowPower?-32:-64);
+    this.particles=this.particles.slice(this.lowPower?-90:-200);this.numbers=this.numbers.slice(-12);this.rings=this.rings.slice(this.lowPower?-32:-64);
   }
   draw(battle,dt){
     if(this.contextLost||this.disposed)return;
@@ -99,11 +103,11 @@ export class Renderer {
     this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/20,1,battle.ring/33);
     this.gl.render(this.scene,this.camera);
     const c=this.c;c.clearRect(0,0,768,480);c.textAlign='center';
-    const representatives=new Set();
+    const scale=fighterScale(this.mobile,battle.fighters.length);
     for(const f of battle.alive){
-      const p=this.project(f.x,f.y,1.73);c.fillStyle='#25352a';c.fillRect(p.x-9,p.y,18,3);c.fillStyle=f.hp>35?'#bcdb82':'#f2ae6f';c.fillRect(p.x-8,p.y+1,16*f.hp/100,1);
-      if(!representatives.has(f.teamId)){representatives.add(f.teamId);c.font=`600 ${this.mobile?13:11}px "Noto Sans KR",sans-serif`;const width=c.measureText(f.name).width+12;c.fillStyle='#203c31e6';c.fillRect(p.x-width/2,p.y-21,width,17);c.fillStyle='#fffae4';c.fillText(f.name,p.x,p.y-8)}
-      if(battle.winner===f){c.font='20px sans-serif';c.fillStyle='#ffdc7a';c.fillText('♛',p.x,p.y-28)}
+      const p=this.project(f.x,f.y,1.73*scale);
+      if(f.hp<100&&battle.fighters.length<=40){c.fillStyle='#172c31';c.fillRect(p.x-12,p.y,24,5);c.fillStyle=f.hp>35?'#a4e38b':'#ffb46d';c.fillRect(p.x-11,p.y+1,22*f.hp/100,3)}
+      if(battle.winner===f){c.font='26px sans-serif';c.fillStyle='#ffdc7a';c.strokeStyle='#172c31';c.lineWidth=3;c.strokeText('♛',p.x,p.y-10);c.fillText('♛',p.x,p.y-10)}
     }
     for(const n of this.numbers){n.life-=dt;n.y-=dt*25;c.globalAlpha=Math.min(1,Math.max(0,n.life*3));c.font=`800 ${n.crit?16:12}px sans-serif`;c.strokeStyle='#294331';c.lineWidth=3;c.strokeText(n.text,n.x,n.y);c.fillStyle=n.crit?'#ffda86':'#fff6d7';c.fillText(n.text,n.x,n.y)}c.globalAlpha=1;this.numbers=this.numbers.filter(n=>n.life>0);
     for(const p of this.particles){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;c.globalAlpha=Math.min(1,Math.max(0,p.life*3));c.fillStyle=p.color;c.fillRect(p.x,p.y,3,3)}c.globalAlpha=1;this.particles=this.particles.filter(p=>p.life>0);

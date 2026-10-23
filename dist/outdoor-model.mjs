@@ -10,6 +10,7 @@ export function createTerrainFloor(map){
 }
 
 export function outdoorBoxes(map){
+  const quietTile=new THREE.Color(map.floor).lerp(new THREE.Color(map.tile),.18).getStyle();
   const boxes=[],ice=map.id==='ice',lava=map.id==='lava',ship=map.id==='ship';
   const add=(x,y,z,w,h,d,color)=>boxes.push({x,y,z,w,h,d,color});
   // Water and lava sit below the playable platforms.
@@ -21,7 +22,7 @@ export function outdoorBoxes(map){
   // Only tiles completely on the terrain are placed; the shaped base fills edges.
   for(let y=96,row=0;y<414;y+=18,row++)for(let x=82;x<692;x+=24){
     if(![[x,y],[x+23,y],[x,y+17],[x+23,y+17]].every(([px,py])=>terrainContains(map,px,py)))continue;
-    add((x+11.5-384)/20,.075,(y+8.5-252)/20,1.15,.05,.85,(row+Math.floor(x/24))%3?map.tile:map.floor);
+    add((x+11.5-384)/20,.075,(y+8.5-252)/20,1.15,.05,.85,(row+Math.floor(x/24))%3?quietTile:map.floor);
     if(ice&&(row+Math.floor(x/24))%7===0)add((x-374)/20,.107,(y-244)/20,.6,.012,.025,'#f2ffff');
     if(lava&&(row+Math.floor(x/24))%11===0)add((x-374)/20,.107,(y-244)/20,.55,.012,.025,'#e6a472');
   }

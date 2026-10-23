@@ -36,10 +36,10 @@ test('effects remain bounded even if a frame is paused during a burst of events'
   for(const lowPower of[false,true]){
     const target={lowPower,particles:[],numbers:[],rings:[],project:()=>({x:0,y:0})};
     for(let i=0;i<2000;i++){
-      Renderer.prototype.event.call(target,{type:'hit',damage:20,x:0,y:0});
+      Renderer.prototype.event.call(target,{type:'hit',crit:true,damage:20,x:0,y:0});
       Renderer.prototype.event.call(target,{type:'skill',fighter:{x:0,y:0}});
     }
-    assert.equal(target.particles.length,lowPower?90:200);assert.equal(target.numbers.length,35);assert.equal(target.rings.length,lowPower?32:64);
+    assert.equal(target.particles.length,lowPower?90:200);assert.equal(target.numbers.length,12);assert.equal(target.rings.length,lowPower?32:64);
   }
 });
 
