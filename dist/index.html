@@ -30,13 +30,15 @@
       <section class="game-column" aria-label="메뉴 난투전 경기장">
         <div class="arena-shell" id="arena-shell">
         <div class="arena-top"><div class="arena-heading"><span class="live-dot"></span><b>메뉴 아레나</b><span class="mode-label">FREE FOR ALL</span></div><span class="round-label" id="round-label">ROUND 01</span></div>
-        <div class="legend-heading">참가 팀 <span>색상 · 메뉴 · 남은 수</span></div>
-        <div class="roster arena-legend" id="roster" aria-label="팀 색상, 메뉴 이름 및 남은 수 범례"></div>
         <div class="arena-frame" id="arena-frame">
           <canvas id="arena" width="768" height="480" aria-label="위에서 내려다보는 픽셀 경기장. 각 메뉴 캐릭터가 자동으로 싸웁니다."></canvas>
+          <details class="arena-legend-panel" open>
+            <summary class="legend-heading">참가 팀 <span>색상 · 메뉴 · 남은 수</span></summary>
+            <div class="roster arena-legend" id="roster" aria-label="팀 색상, 메뉴 이름 및 남은 수 범례"></div>
+          </details>
           <button class="exit-focus" id="exit-focus-btn" hidden aria-label="경기장 크게 보기 닫기">닫기 ×</button>
           <div class="arena-hud"><div class="map-badge"><span class="map-dot"></span><span id="arena-map-name">숲속 유적</span></div><span class="arena-timer" id="arena-timer">00:00</span></div>
-          <div class="ready-banner" id="ready-banner"><span>준비 완료</span><small>시작을 누르면 자동으로 대결해요</small></div>
+          <div class="ready-banner" id="ready-banner"><span>준비 완료</span><button class="ready-start" id="ready-start-btn" type="button"><svg aria-hidden="true"><use href="#swords"/></svg><b>시작하기</b><span aria-hidden="true">→</span></button><small>시작을 누르면 자동으로 대결해요</small></div>
           <div class="countdown" id="countdown" hidden aria-live="assertive"></div>
           <div class="paused-banner" id="paused-banner" hidden>잠깐, 쉬어가는 중<span>계속하기를 누르면 대결이 이어집니다.</span></div>
           <div class="arena-caption"><span id="arena-caption">작은 용사들, 큰 메뉴 결정.</span><span>3D MINIATURE ARENA</span></div>
