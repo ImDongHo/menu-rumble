@@ -1,3 +1,4 @@
+import {terrainContains} from './terrain.mjs';
 import{MAPS,seededRandom}from'./engine.mjs';
 const W=768,H=480;
 function rect(c,x,y,w,h,color){c.fillStyle=color;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
@@ -5,8 +6,25 @@ function poly(c,pts,color){c.fillStyle=color;c.beginPath();pts.forEach(([x,y],i)
 function shade(hex,delta){const n=parseInt(hex.slice(1),16);return'#'+[n>>16,(n>>8)&255,n&255].map(v=>Math.max(0,Math.min(255,v+delta)).toString(16).padStart(2,'0')).join('')}
 function tree(c,x,y,map,s=1){c.save();c.translate(x,y);c.scale(s,s);const moon=map.id==='moon';rect(c,-17,-2,38,10,'#142c2733');rect(c,-4,-24,8,31,moon?'#50616e':'#756447');rect(c,-2,-22,3,29,moon?'#76858c':'#a28b5a');const dark=moon?'#3f5c73':'#345e41',mid=moon?'#5a7b8e':'#4f8050',light=moon?'#7a9a9d':'#76a366';poly(c,[[-30,-20],[-34,-34],[-28,-45],[-20,-45],[-20,-56],[-6,-56],[-6,-64],[10,-64],[10,-57],[23,-57],[23,-46],[32,-46],[36,-29],[28,-16],[11,-12],[-12,-13]],dark);poly(c,[[-29,-33],[-26,-44],[-15,-44],[-15,-55],[-4,-55],[-4,-60],[9,-60],[9,-53],[20,-53],[20,-43],[29,-43],[29,-29],[19,-22],[-10,-21],[-10,-27]],mid);poly(c,[[-18,-43],[-12,-43],[-12,-53],[-3,-53],[-3,-57],[7,-57],[7,-49],[19,-49],[19,-42],[9,-42],[9,-36],[-14,-36]],light);rect(c,-25,-32,7,4,light);rect(c,16,-30,9,4,shade(mid,18));rect(c,-9,-19,9,3,shade(mid,-9));c.restore()}
 function cactus(c,x,y,map){rect(c,x-9,y+2,22,6,'#815b3633');rect(c,x-5,y-34,10,37,'#608358');rect(c,x-3,y-35,4,35,'#83a366');rect(c,x-15,y-25,7,19,'#608358');rect(c,x-12,y-12,12,6,'#608358');rect(c,x+9,y-29,6,17,'#608358');rect(c,x+3,y-17,11,6,'#608358');rect(c,x-13,y-24,3,13,'#83a366');rect(c,x+10,y-28,2,12,'#83a366');rect(c,x-2,y-25,2,3,'#cbd8a3')}
-function pillar(c,o,map){const{x,y}=o;rect(c,x-21,y+1,45,13,'#23332925');rect(c,x-16,y-18,32,26,map.edge);rect(c,x-12,y-27,24,26,shade(map.tile,-9));rect(c,x-14,y-29,28,8,shade(map.tile,20));rect(c,x-17,y-8,34,9,shade(map.floor,-12));rect(c,x-17,y-10,34,4,shade(map.tile,15));rect(c,x-9,y-20,4,9,shade(map.edge,18));rect(c,x+5,y-19,3,8,map.edge);if(map.id==='forest'){rect(c,x-14,y-29,14,4,'#78925e');rect(c,x-15,y-25,5,8,'#6c8452');rect(c,x+11,y-8,6,5,'#8ba367')}else if(map.id==='moon'){rect(c,x-3,y-24,6,6,'#d4cce1');rect(c,x-1,y-25,2,8,'#f1e4f3')}}
-export function makeMap(mapId){const map=MAPS.find(m=>m.id===mapId)||MAPS[0],canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');c.imageSmoothingEnabled=false;const random=seededRandom(8712);rect(c,0,0,W,H,map.ground);
+function pillar(c,o,map){const{x,y}=o;
+ if(map.terrain){const r=o.r;c.save();c.translate(x,y);c.fillStyle='#17293930';c.beginPath();c.ellipse(3,4,r+4,r*.64,0,0,Math.PI*2);c.fill();
+ if(map.id==='ice'){poly(c,[[-r,r*.4],[-r*.7,-r],[0,-r*1.8],[r*.8,-r],[r,r*.4]],'#93c8df');poly(c,[[0,-r*1.8],[r*.8,-r],[r,r*.4],[0,r*.6]],'#c7edf3');rect(c,-r*.4,-r,r*.18,r,'#efffff')}
+ else if(map.id==='lava'){poly(c,[[-r,r*.3],[-r*.8,-r*.7],[0,-r*1.2],[r,-r*.4],[r*.85,r*.5]],'#5c4553');poly(c,[[-r*.8,-r*.7],[0,-r*1.2],[r,-r*.4],[0,-r*.25]],'#96717a');rect(c,-r*.45,0,r*.7,3,'#ffb86a')}
+ else{rect(c,-r*.75,-r*1.2,r*1.5,r*1.6,'#966940');rect(c,-r*.75,-r*1.2,r*1.5,r*.4,'#d1a36d');rect(c,-r*.5,-r*1.2,3,r*1.6,'#634a36');rect(c,r*.4,-r*1.2,3,r*1.6,'#634a36')}
+ c.restore();return;
+ }rect(c,x-21,y+1,45,13,'#23332925');rect(c,x-16,y-18,32,26,map.edge);rect(c,x-12,y-27,24,26,shade(map.tile,-9));rect(c,x-14,y-29,28,8,shade(map.tile,20));rect(c,x-17,y-8,34,9,shade(map.floor,-12));rect(c,x-17,y-10,34,4,shade(map.tile,15));rect(c,x-9,y-20,4,9,shade(map.edge,18));rect(c,x+5,y-19,3,8,map.edge);if(map.id==='forest'){rect(c,x-14,y-29,14,4,'#78925e');rect(c,x-15,y-25,5,8,'#6c8452');rect(c,x+11,y-8,6,5,'#8ba367')}else if(map.id==='moon'){rect(c,x-3,y-24,6,6,'#d4cce1');rect(c,x-1,y-25,2,8,'#f1e4f3')}}
+function outdoorMap(c,map){
+ rect(c,0,0,W,H,map.ground);const random=seededRandom(8721);
+ for(let i=0;i<220;i++)rect(c,random()*W,random()*H,8+random()*20,2,i%3?map.light:map.dark);
+ const path=()=>{c.beginPath();map.terrain.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath()};
+ c.save();c.translate(0,9);path();c.fillStyle=map.edge;c.fill();c.restore();path();c.fillStyle=map.floor;c.fill();
+ c.save();path();c.clip();
+ for(let y=90,row=0;y<414;y+=18,row++)for(let x=76;x<692;x+=24){rect(c,x+1,y+1,22,16,(row+Math.floor(x/24))%3?map.tile:map.floor);if(map.id==='ice'&&random()>.88)rect(c,x+3,y+4,11,1,'#f1ffff')}
+ c.restore();path();c.strokeStyle=map.id==='ice'?'#efffff':map.edge;c.lineWidth=4;c.stroke();
+ if(map.id==='ship'){for(const x of[244,524]){rect(c,x-4,44,8,54,'#75523a');rect(c,x-30,53,60,4,'#af9063');rect(c,x-26,58,52,25,'#f0e0bb')}}
+ for(const o of map.obstacles)pillar(c,o,map);
+}
+export function makeMap(mapId){const map=MAPS.find(m=>m.id===mapId)||MAPS[0],canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const c=canvas.getContext('2d');c.imageSmoothingEnabled=false;const random=seededRandom(8712);if(map.terrain){outdoorMap(c,map);return canvas}rect(c,0,0,W,H,map.ground);
  // Pixel clusters on the woodland floor, with a coherent light direction.
  for(let i=0;i<1650;i++){const x=Math.floor(random()*W/3)*3,y=Math.floor(random()*H/3)*3;rect(c,x,y,random()>.8?6:3,2,random()>.5?map.dark:map.light)}
  // Deep foundation, vertical stone courses and a chipped perimeter.

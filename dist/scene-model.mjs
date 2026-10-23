@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
-import {seededRandom,MAX_FIGHTERS} from './engine.mjs';
+import {outdoorBoxes} from './outdoor-model.mjs';
+import {MAPS,seededRandom,MAX_FIGHTERS} from './engine.mjs';
 
 export const WORLD_SCALE=20;
 export const worldPosition=(x,y)=>({x:(x-384)/WORLD_SCALE,z:(y-252)/WORLD_SCALE});
@@ -8,6 +9,7 @@ export function createCamera(){
   camera.position.set(0,28,25);camera.up.set(0,1,0);camera.lookAt(0,.35,0);camera.updateMatrixWorld();return camera;
 }
 export function roomBoxes(mapId,obstacles){
+  const terrainMap=MAPS.find(map=>map.id===mapId);if(terrainMap?.terrain)return outdoorBoxes({...terrainMap,obstacles});
   const boxes=[],random=seededRandom(451),wood=mapId==='forest',moon=mapId==='moon';
   const add=(x,y,z,w,h,d,color)=>boxes.push({x,y,z,w,h,d,color});
   const stone=moon?'#516378':wood?'#7a7c74':'#bb9870';
