@@ -15,9 +15,9 @@ export function roomBoxes(mapId,obstacles){
   const stone=moon?'#516378':wood?'#7a7c74':'#bb9870';
   add(0,-.4,0,33,.75,19.8,moon?'#394858':wood?'#585d51':'#a88358');
   for(let z=-9.15,row=0;z<9.3;z+=wood?.64:1.1,row++)for(let x=-15.9;x<16;x+=wood?2.05:1.1){
-    const color=new THREE.Color(wood?'#bc985d':moon?'#8b9eac':'#dfc192');color.offsetHSL(0,0,(random()-.5)*.12);
+    const color=new THREE.Color(wood?'#bc985d':moon?'#8b9eac':'#dfc192');color.offsetHSL(0,0,(random()-.5)*.025);
     add(x+(wood?1:.52),.025,z,wood?2.015:1.075,.1,wood?.61:1.075,'#'+color.getHexString());
-    if(wood&&random()>.25)add(x+.25+random()*1.1,.081,z+(random()-.5)*.32,.18+random()*.75,.008,.018,random()>.5?'#9d7c49':'#d3af70');
+    if(wood&&random()>.95)add(x+.25+random()*1.1,.081,z+(random()-.5)*.32,.18+random()*.75,.008,.018,random()>.5?'#9d7c49':'#d3af70');
   }
   // The near wall is deliberately low so it cannot hide the fighters.
   for(let x=-16.6;x<=16.6;x+=1.2)for(let layer=0;layer<4;layer++){
@@ -44,10 +44,11 @@ export function roomBoxes(mapId,obstacles){
 }
 export function createFighterBatches(){
   const cube=new THREE.BoxGeometry(1,1,1),sphere=new THREE.SphereGeometry(.36,12,8);
-  const colorMaterial=new THREE.MeshLambertMaterial({color:0xffffff});
+  const colorMaterial=new THREE.MeshLambertMaterial({color:0xffffff,toneMapped:false});
+  const outline=new THREE.MeshBasicMaterial({color:'#172c31',side:THREE.BackSide});
   const skin=new THREE.MeshLambertMaterial({color:'#f7dfb9'}),eyes=new THREE.MeshBasicMaterial({color:'#343027'});
   const silver=new THREE.MeshLambertMaterial({color:'#d9e1df'}),gold=new THREE.MeshLambertMaterial({color:'#d6ae58'}),grip=new THREE.MeshLambertMaterial({color:'#745333'});
-  const definitions={body:[cube,colorMaterial,MAX_FIGHTERS],head:[sphere,skin,MAX_FIGHTERS],arms:[cube,colorMaterial,MAX_FIGHTERS*2],hands:[cube,skin,MAX_FIGHTERS*2],legs:[cube,colorMaterial,MAX_FIGHTERS*2],eyes:[cube,eyes,MAX_FIGHTERS*2],blade:[cube,silver,MAX_FIGHTERS],guard:[cube,gold,MAX_FIGHTERS],grip:[cube,grip,MAX_FIGHTERS]};
+  const definitions={headOutline:[sphere,outline,MAX_FIGHTERS],bodyOutline:[cube,outline,MAX_FIGHTERS],body:[cube,colorMaterial,MAX_FIGHTERS],head:[sphere,skin,MAX_FIGHTERS],arms:[cube,colorMaterial,MAX_FIGHTERS*2],hands:[cube,skin,MAX_FIGHTERS*2],legs:[cube,colorMaterial,MAX_FIGHTERS*2],eyes:[cube,eyes,MAX_FIGHTERS*2],blade:[cube,silver,MAX_FIGHTERS],guard:[cube,gold,MAX_FIGHTERS],grip:[cube,grip,MAX_FIGHTERS]};
   const batches={};
   for(const[name,args]of Object.entries(definitions)){const mesh=new THREE.InstancedMesh(...args);mesh.name=name;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.count=0;batches[name]=mesh}
   return batches;
