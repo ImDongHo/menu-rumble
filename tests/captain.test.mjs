@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Battle,MAPS,MODES,seededRandom} from '../dist/engine.mjs';
+import {Battle,ARENA_MAPS as MAPS,MODES,seededRandom} from '../dist/engine.mjs';
 import {terrainContains} from '../dist/terrain.mjs';
 import {estimateBattles,simulateOutcome} from '../dist/odds.mjs';
 
-test('three selectable modes include one random captain per team with standard combat stats',()=>{
-  assert.deepEqual(Object.keys(MODES),['classic','captain','traps']);
+test('six selectable modes include one random captain per team with standard combat stats',()=>{
+  assert.deepEqual(Object.keys(MODES),['classic','captain','traps','royale','race','infection']);
   const entries=[{name:'A',count:5},{name:'B',count:8}],a=new Battle(entries,'forest',13,'captain'),b=new Battle(entries,'forest',13,'captain');
   assert.deepEqual(a.fighters,b.fighters);assert.equal(a.trapField,null);assert.equal(a.winner,null);
   for(const team of a.teams)assert.equal(a.fighters.filter(f=>f.teamId===team.id&&f.isCaptain).length,1);

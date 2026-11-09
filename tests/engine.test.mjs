@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Battle,MAPS,parseMenuInput,normalizeNames,seededRandom,shuffle} from '../dist/engine.mjs';
+import {Battle,ARENA_MAPS as MAPS,parseMenuInput,normalizeNames,seededRandom,shuffle} from '../dist/engine.mjs';
 
 function simulate(entries,map='forest',seed=1,verifyEvents=false) {
   const b=new Battle(entries,map,seed);

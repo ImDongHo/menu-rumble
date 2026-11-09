@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../dist/vendor/three.module.js';
-import {Battle,MAPS} from '../dist/engine.mjs';
+import {Battle,ARENA_MAPS as MAPS} from '../dist/engine.mjs';
 import {terrainContains,terrainSegmentClear,terrainWaypoint,constrainTerrain} from '../dist/terrain.mjs';
 import {createTerrainFloor} from '../dist/outdoor-model.mjs';
 import {disposeScene} from '../dist/resource-cleanup.mjs';

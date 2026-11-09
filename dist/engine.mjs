@@ -1,11 +1,14 @@
 import {terrainContains,constrainTerrain,terrainWaypoint,terrainSegmentClear} from './terrain.mjs';
 import {FLAT_MAPS} from './flat-maps.mjs';
+import {ADVENTURE_MAPS,mapBounds} from './adventure-maps.mjs';
+import {prepareAdventure,stepRace,raceStandings,adventureWaypoint,collectRoyaleItems,convertFighter} from './adventure-modes.mjs';
 import {TrapField,trapWaypoint,trapType} from './traps.mjs';
 export const MODES={classic:{name:'일반 난투',description:'마지막까지 남은 메뉴가 승리해요.'},captain:{name:'대장전',description:'왕관을 쓴 대장이 쓰러지면 해당 팀이 모두 탈락해요.'},traps:{name:'함정전',description:'2초 예고! 폭발·독 장판·충격파를 피해 살아남으세요.'}};
+Object.assign(MODES,{royale:{name:'배틀로얄',description:'전용 섬에서 아이템을 찾고 좁아지는 안전 구역에서 살아남으세요.'},race:{name:'레이스',description:'메뉴당 대표 1마리! 같은 기본 속도로 달려 결승선에 먼저 도착하세요.'},infection:{name:'감염전',description:'쓰러진 상대를 우리 메뉴로 감염시켜 전원을 같은 진영으로 바꾸세요.'}});
 export const COLORS = ['#ec6259','#ed9c3e','#ee79a3','#479cdd','#a67b54','#e1bd39','#a884d3','#60aa59','#39b6a2','#ca799b','#7298b3','#b0ba4d','#c17a49','#7e8ed0','#be9992','#8fa26b'];
 export const MAX_FIGHTERS = 160;
 export const WEAPONS = {none:{name:'맨손',multiplier:1},sword:{name:'짧은 검',multiplier:1.1}};
-export const MAPS = [
+export const ARENA_MAPS = [
   {id:'forest',name:'숲속 유적',english:'FOREST RUINS',subtitle:'초록빛 숲속, 첫 번째 한판',ground:'#47965b',dark:'#2e6440',light:'#78b667',floor:'#94ce65',tile:'#a0d675',edge:'#536e43',accent:'#d8e7a1',obstacles:[{x:240,y:170,r:17},{x:528,y:170,r:17},{x:240,y:334,r:17},{x:528,y:334,r:17}]},
   {id:'moss-ruins',name:'이끼 숲 유적',english:'MOSSY RUINS',subtitle:'이끼 낀 돌담 사이의 한판',art:'./maps/moss-ruins.png',ground:'#94a080',dark:'#687458',light:'#bac7a3',floor:'#aeb49c',tile:'#bec3af',edge:'#758368',accent:'#e0e5c7',obstacles:[{x:266,y:182,r:20},{x:502,y:182,r:20},{x:266,y:322,r:20},{x:502,y:322,r:20}]},
   {id:'sand',name:'모래 경기장',english:'SANDSTONE ARENA',subtitle:'뜨거운 모래 위의 승부',ground:'#dba759',dark:'#a97c47',light:'#eacb81',floor:'#e8cb8a',tile:'#f0d698',edge:'#aa8856',accent:'#ffedbb',obstacles:[{x:270,y:180,r:17},{x:498,y:180,r:17},{x:270,y:324,r:17},{x:498,y:324,r:17}]},
@@ -15,6 +18,8 @@ export const MAPS = [
   {id:'ship',name:'해적선 갑판',english:'CORSAIR DECK',subtitle:'화물 사이로 이어지는 좁은 갑판',ground:'#347a91',dark:'#23516c',light:'#65adba',floor:'#bb8a54',tile:'#cc9d66',edge:'#654b3b',accent:'#f3dfad',backdrop:'#4c8b9e',terrain:[[76,160],[180,90],[588,90],[692,160],[692,350],[588,414],[180,414],[76,350]],obstacles:[{x:244,y:178,r:23},{x:524,y:178,r:23},{x:244,y:326,r:23},{x:524,y:326,r:23}]},
   ...FLAT_MAPS
 ];
+export const MAPS=[...ARENA_MAPS,...ADVENTURE_MAPS];
+export const mapsForMode=mode=>MAPS.filter(map=>map.modes?map.modes.includes(mode):!['royale','race','infection'].includes(mode));
 
 export function seededRandom(seed) {
   return () => {
@@ -49,16 +54,17 @@ export function parseMenuInput(text) {
 export class Battle {
   constructor(entries, mapId = 'forest', seed = Date.now(), mode = 'classic') {
     if (entries.length < 2 || entries.length > 16) throw new RangeError('참가 메뉴는 2–16개입니다.');
-    const menus = entries.map(item => typeof item === 'string' ? {name:item,count:5} : {...item});
+    this.mode=Object.hasOwn(MODES,mode)?mode:'classic';
+    const menus = entries.map(item => typeof item === 'string' ? {name:item,count:5} : {...item}).map(item=>this.mode==='race'?{...item,count:1,weapon:'none'}:item);
     if (menus.some(m => !m.name || !Number.isInteger(m.count) || m.count < 1 || m.count > 40)) throw new RangeError('출전 수는 메뉴마다 1–40마리입니다.');
     if (menus.reduce((sum,m) => sum + m.count, 0) > MAX_FIGHTERS) throw new RangeError(`한판에는 최대 ${MAX_FIGHTERS}마리가 참가할 수 있어요.`);
     this.random = seededRandom(seed);
-    this.map = MAPS.find(m => m.id === mapId) || MAPS[0];
-    this.mode=Object.hasOwn(MODES,mode)?mode:'classic';
+    const allowed=mapsForMode(this.mode);this.map=allowed.find(m=>m.id===mapId)??allowed[0];
     this.elapsed = 0; this.state = 'ready'; this.events = []; this.eliminations = []; this.winner = null;
     this.teams = menus.map((m,i) => ({...m,weapon:m.weapon==='sword'?'sword':'none',id:i,color:COLORS[i]}));
     const positions = [];
-    for (let y = 115; y <= 404; y += this.map.layout?24:27) for (let x = 101; x <= 668; x += this.map.layout?24:29) {
+    const bounds=mapBounds(this.map),spawn=this.map.large?{x:bounds.x+20,y:bounds.y+20,right:bounds.x+bounds.w-20,bottom:bounds.y+bounds.h-20}:{x:101,y:115,right:668,bottom:404};
+    for (let y = spawn.y; y <= spawn.bottom; y += this.map.layout?24:27) for (let x = spawn.x; x <= spawn.right; x += this.map.layout?24:29) {
       if (terrainContains(this.map,x,y,12)&&this.map.obstacles.every(o => Math.hypot(x-o.x,y-o.y) > o.r+14)) positions.push({x,y});
     }
     if(positions.length<menus.reduce((sum,m)=>sum+m.count,0))throw new RangeError('경기장에 출전할 공간이 부족합니다.');
@@ -69,17 +75,20 @@ export class Battle {
       this.fighters.push({id,teamId:team.id,member,name:team.name,color:team.color,weapon:team.weapon,...spot,hp:100,vx:0,vy:0,face:this.random()>.5?1:-1,angle:0,cooldown:.15+this.random()*.65,retarget:0,target:null,step:this.random()*6.28,swing:0,swingTotal:.48,attackKind:'punch',attackSide:0,attacks:0,spin:0,hurt:0,hurtStrength:0,flash:0,stun:0,invulnerable:0,dash:0,dashCooldown:1+this.random()*3,skillCooldown:.4+this.random()*4,kills:0,dead:false,deadTime:0});
     }
     if(this.mode==='captain'){const leaders=seededRandom(seed^0x721ca9);for(const team of this.teams){const members=this.fighters.filter(f=>f.teamId===team.id);members[Math.floor(leaders()*members.length)].isCaptain=true}}
+    prepareAdventure(this);
     this.trapField=this.mode==='traps'?new TrapField(this.map,seededRandom(seed^0x51a7cafe)):null;
     if(this.trapField){const reaction=seededRandom(seed^0x64ba12);this.trapDamageRandom=seededRandom(seed^0x713bc4);for(const f of this.fighters)f.trapReaction=.25+reaction()*2.25}
   }
   get traps(){return this.state==='finished'?[]:this.trapField?.zones??[]}
   get alive() { return this.fighters.filter(f => !f.dead); }
-  get ring() { return this.elapsed > 24 ? Math.max(28,340-(this.elapsed-24)*8) : null; }
+  get standings(){return this.mode==='race'?raceStandings(this):null}
+  get ring(){if(this.mode==='race')return null;if(this.mode==='royale')return this.elapsed>10?Math.max(28,600-(this.elapsed-10)*14):null;if(this.mode==='infection')return this.elapsed>20?Math.max(70,Math.sqrt(this.fighters.length)*11,560-(this.elapsed-20)*16):null;return this.elapsed>24?Math.max(28,340-(this.elapsed-24)*8):null}
   get aliveTeams() { return [...new Set(this.alive.map(f => f.teamId))]; }
   start() { if (this.state === 'ready') this.state = 'running'; }
   drainEvents() { const events = this.events; this.events = []; return events; }
   eliminate(f,killer = null,cause = null) {
     if(f.dead)return;
+    if(this.mode==='infection'&&killer&&killer.teamId!==f.teamId){convertFighter(this,f,killer);return}
     const captainOut=this.mode==='captain'&&f.isCaptain;
     if(this.alive.length<=1||captainOut&&!this.alive.some(other=>other.teamId!==f.teamId)){f.hp=Math.max(1,f.hp);return}
     f.hp = 0; f.dead = true; f.deadTime = this.elapsed;
@@ -105,6 +114,7 @@ export class Battle {
       return;
     }
     damage = damage*(WEAPONS[attacker.weapon]?.multiplier??1);
+    if(this.mode==='infection'&&this.elapsed>=35){let support=0;for(const other of this.alive)if(Math.hypot(other.x-attacker.x,other.y-attacker.y)<120)support+=other.teamId===attacker.teamId?1:-1;damage*=1+Math.min(4,Math.max(0,support)*.2)}
     target.hp = Math.max(0,target.hp-damage); target.flash = .12; target.hurt=.36;target.hurtStrength=crit?.9:.45; target.stun = .09; target.invulnerable = .34;
     const dx = target.x-attacker.x,dy = target.y-attacker.y,d = Math.hypot(dx,dy)||1;
     target.vx += dx/d*(crit?145:80); target.vy += dy/d*(crit?145:80);
@@ -128,7 +138,9 @@ export class Battle {
   }
   step(dt) {
     if (this.state !== 'running') return;
-    dt = Math.min(Math.max(dt,0),.05); this.elapsed += dt;
+    dt = Math.min(Math.max(dt,0),.05);if(this.mode==='race'){stepRace(this,dt);return} this.elapsed += dt;
+    if(this.mode==='infection'&&this.elapsed>=35&&!this.infectionPressure){this.infectionPressure=true;this.events.push({type:'infection-pressure',x:384,y:252})}
+    if(this.mode==='infection')this.infectionRally=this.aliveTeams.length>2;
     const traps=this.trapField?.advance(this.elapsed);
     if(traps?.warned)this.events.push({type:'trap-warning',x:384,y:252});
     const alive = this.alive;
@@ -136,7 +148,7 @@ export class Battle {
       if (f.dead) continue;
       for (const key of ['cooldown','retarget','dashCooldown','skillCooldown']) f[key] -= dt;
       for (const key of ['stun','flash','swing','dash','invulnerable','hurt','spin']) f[key] = Math.max(0,f[key]-dt);
-      if (!f.target || f.target.dead || f.retarget <= 0) {
+      if (!f.target || f.target.dead || f.target.teamId===f.teamId || f.retarget <= 0) {
         let nearest = Infinity; f.target = null;
         for (const other of alive) if (!other.dead && other.teamId !== f.teamId) {
           const distance = Math.hypot(f.x-other.x,f.y-other.y);
@@ -148,11 +160,12 @@ export class Battle {
       if (!target) continue;
       const dx = target.x-f.x,dy = target.y-f.y,d = Math.hypot(dx,dy)||1;
       f.angle = Math.atan2(dy,dx); if (Math.abs(dx) > 2) f.face = dx > 0 ? 1 : -1;
-      let speed = d > 25 ? 43 : 6;
+      let speed = d > 25 ? (this.map.large?64:43) : 6;
+      if(f.boost>0){f.boost=Math.max(0,f.boost-dt);speed*=1.45}
       if (f.dashCooldown <= 0 && d > 60) { f.dash = .18; f.dashCooldown = 1.5+this.random()*3; this.events.push({type:'dash',fighter:f,x:f.x,y:f.y}); }
       if (f.dash > 0) speed = 155;
       if (f.stun > 0) speed = 0;
-      const normalWaypoint=terrainWaypoint(this.map,f,target),waypoint=this.trapField?trapWaypoint(this.map,f,normalWaypoint,this.traps,this.elapsed):normalWaypoint,evading=waypoint!==normalWaypoint;
+      const normalWaypoint=this.map.large?adventureWaypoint(this,f,target):terrainWaypoint(this.map,f,target),waypoint=this.trapField?trapWaypoint(this.map,f,normalWaypoint,this.traps,this.elapsed):normalWaypoint,evading=waypoint!==normalWaypoint;
       if(evading&&f.stun<=0)speed=86;
       const wx=waypoint.x-f.x,wy=waypoint.y-f.y,wd=Math.hypot(wx,wy)||1;
       if(evading){f.angle=Math.atan2(wy,wx);if(Math.abs(wx)>2)f.face=wx>0?1:-1}
@@ -170,17 +183,17 @@ export class Battle {
       const previous={x:f.x,y:f.y};
       f.x += (mx+f.vx)*dt; f.y += (my+f.vy)*dt;
       f.vx *= Math.exp(-10*dt); f.vy *= Math.exp(-10*dt);
-      f.x = Math.max(91,Math.min(677,f.x)); f.y = Math.max(106,Math.min(410,f.y));
+      if(!this.map.large){f.x = Math.max(91,Math.min(677,f.x)); f.y = Math.max(106,Math.min(410,f.y))}
       for (const o of this.map.obstacles) {
         const ox = f.x-o.x,oy = f.y-o.y,od = Math.hypot(ox,oy)||.01;
         if (od < o.r+8) { f.x = o.x+ox/od*(o.r+8); f.y = o.y+oy/od*(o.r+8); }
       }
-      constrainTerrain(this.map,f,previous);
+      constrainTerrain(this.map,f,previous);if(this.mode==='royale')collectRoyaleItems(this,f);
       // Crowding charges the same counterattack for every character. A surrounded
       // survivor can strike several enemies instead of being locked in a damage pile.
       f.skillCooldown -= dt*Math.max(0,nearbyEnemies-2)*.7;
       f.step += dt*(speed > 15 ? 13 : 3);
-      if (!evading && f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
+      if (this.mode!=='infection' && !evading && f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
         f.skillCooldown = 3.5+this.random()*3; f.spin=.68;f.swing = f.swingTotal = .68;f.attackKind='spin';f.attackSide=f.attacks++%2;
         const burst = this.random() < .13;
         if (burst) { f.invulnerable = .9; this.events.push({type:'comeback',fighter:f,x:f.x,y:f.y-10}); }
@@ -193,7 +206,7 @@ export class Battle {
         this.hit(f,target,Math.round((8+this.random()*12)*(crit?2.3:1)),crit);
       }
       const ringCenter=this.map.ringCenter??{x:384,y:252};
-      if (this.ring !== null && Math.hypot(f.x-ringCenter.x,(f.y-ringCenter.y)*1.65) > this.ring) {
+      if (this.mode!=='infection' && this.ring !== null && Math.hypot(f.x-ringCenter.x,(f.y-ringCenter.y)*1.65) > this.ring) {
         f.hp = Math.max(0,f.hp-dt*16);
         if (f.hp <= 0) this.eliminate(f);
       }

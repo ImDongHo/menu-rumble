@@ -71,3 +71,9 @@ h1{font-size:30px;letter-spacing:-1.3px}.intro-description{font-size:13px;color:
 @media(max-width:480px){.battle-mode-picker{gap:8px;margin-bottom:12px}.mode-options button{padding:8px 11px;font-size:11px}.battle-mode-picker p{font-size:10px}.arena-heading #arena-mode-name{font-size:9px}}
 
 .mode-options button[data-mode=captain][aria-pressed=true]{background:#79652c;border-color:#79652c}.captain-status{color:#ad8a2e;font-size:14px;line-height:1}
+
+.mode-options{flex-wrap:wrap;max-width:100%}.mode-options button{white-space:nowrap}#camera-btn{border:1px solid #cad8c4;background:#fff;color:#3e664e;border-radius:7px;padding:7px 10px;font:inherit;font-size:11px;cursor:pointer}.mode-progress{font-size:12px;color:#496b50;margin:10px 0 0}.mode-options button[data-mode=royale][aria-pressed=true]{background:#496957}.mode-options button[data-mode=race][aria-pressed=true]{background:#92713d}.mode-options button[data-mode=infection][aria-pressed=true]{background:#655179}.battle-mode-picker [hidden],.mode-progress[hidden]{display:none}
+
+.arena-top-actions{display:flex;align-items:center;gap:12px}#camera-btn[hidden]{display:none}@media(max-width:480px){.arena-top-actions{gap:7px}#camera-btn{padding:5px 6px;font-size:9px}}
+
+@media(max-width:480px){.mode-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:6px}}
