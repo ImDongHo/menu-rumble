@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../dist/vendor/three.module.js';
-import {Battle,MAPS,seededRandom} from '../dist/engine.mjs';
+import {Battle,ARENA_MAPS as MAPS,seededRandom} from '../dist/engine.mjs';
 import {TrapField,trapFits,trapWaypoint,TRAP_DAMAGE,TRAP_TYPES} from '../dist/traps.mjs';
 import {terrainContains,terrainSegmentClear} from '../dist/terrain.mjs';
 import {createTrapMeshes,updateTrapMeshes} from '../dist/trap-model.mjs';

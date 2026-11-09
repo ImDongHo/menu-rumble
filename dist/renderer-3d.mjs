@@ -9,6 +9,7 @@ import {animalKind,animalPose,fighterArm,heldSword} from './animal-motion.mjs?v=
 import {disposeScene} from './resource-cleanup.mjs';
 import {drawTrapLabels,trapType} from './traps.mjs';
 import {createTrapMeshes,updateTrapMeshes} from './trap-model.mjs';
+import {createPickupMesh,updatePickupMesh,drawMinimap} from './adventure-display.mjs';
 const SOFT_TINT=new THREE.Color('#fff4e9');
 
 // The menu icon uses the same simple face and bean silhouette as the 3D model.
@@ -51,6 +52,7 @@ export class Renderer {
     const points=[];for(let i=0;i<=64;i++){const a=i/64*Math.PI*2;points.push(new THREE.Vector3(Math.cos(a),.09,Math.sin(a)))}
     this.safeRing=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#ffdb94',transparent:true,opacity:.8}));this.safeRing.visible=false;this.scene.add(this.safeRing);
     this.trapMeshes=createTrapMeshes();for(const mesh of Object.values(this.trapMeshes))this.scene.add(mesh);
+    this.pickupMesh=createPickupMesh();this.scene.add(this.pickupMesh);this.overview=false;
     this.onContextLost=event=>{event.preventDefault();this.contextLost=true};
     this.onContextRestored=()=>{this.contextLost=false};
     surface.addEventListener('webglcontextlost',this.onContextLost);
@@ -79,15 +81,26 @@ export class Renderer {
       if(!this.artCamera){const h=ART_VIEW.halfHeight;this.artCamera=new THREE.OrthographicCamera(-h*768/480,h*768/480,h,-h,.1,100);this.artCamera.position.set(0,ART_VIEW.cameraY,ART_VIEW.cameraZ);this.artCamera.lookAt(0,ART_VIEW.targetY,0);this.artCamera.updateMatrixWorld()}
       this.camera=this.artCamera;
       if(background){if(!this.mapArtTextures.has(mapId)){const texture=new THREE.CanvasTexture(background);texture.colorSpace=THREE.SRGBColorSpace;this.mapArtTextures.set(mapId,texture)}this.scene.background=this.mapArtTextures.get(mapId)}else this.scene.background=new THREE.Color('#94a080');
-    }else{this.camera=this.standardCamera;this.scene.background=new THREE.Color(MAPS.find(map=>map.id===mapId).backdrop??(mapId==='moon'?'#34495f':mapId==='sand'?'#cfb890':'#465f4e'))}
+    }else{const map=MAPS.find(map=>map.id===mapId);this.camera=map.large?(this.largeCamera??=createCamera()):this.standardCamera;this.scene.background=new THREE.Color(map.backdrop??(mapId==='moon'?'#34495f':mapId==='sand'?'#cfb890':'#465f4e'));if(map.large)this.viewState={x:0,z:0,h:map.overview}}
 
+  }
+  updateCamera(battle,dt){
+    if(!battle.map.large){this.cameraMeta=null;return}
+    let focus=null;if(!this.overview&&battle.state==='running'){
+      if(battle.mode==='race')focus=battle.standings[0];
+      else{focus=battle.alive.find(f=>f.id===this.focusId&&f.target&&!f.target.dead&&f.target.teamId!==f.teamId&&Math.hypot(f.x-f.target.x,f.y-f.target.y)<130);focus??=battle.alive.find(f=>f.target&&!f.target.dead&&f.target.teamId!==f.teamId&&Math.hypot(f.x-f.target.x,f.y-f.target.y)<90);if(focus)this.focusId=focus.id}
+    }
+    const goal=focus?{x:(focus.x-384)/20,z:(focus.y-252)/20,h:this.mobile?12.5:14.5}:{x:0,z:0,h:battle.map.overview};
+    const s=this.viewState??=goal,a=this.cameraNeedsSnap||battle.state==='ready'?1:1-Math.exp(-dt*3);this.cameraNeedsSnap=false;for(const key of['x','z','h'])s[key]+=(goal[key]-s[key])*a;
+    const camera=this.camera;camera.left=-s.h*1.6;camera.right=s.h*1.6;camera.top=s.h;camera.bottom=-s.h;camera.position.set(s.x,28,s.z+25);camera.lookAt(s.x,.35,s.z);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    this.cameraMeta={x:s.x*20+384,y:s.z*20+252,w:s.h*64,h:s.h*54};
   }
   project(x,y,height=1.9){const point=this.activeMap===ART_MAP_ID?artWorldPosition(x,y):worldPosition(x,y);this.vector.set(point.x,height,point.z).project(this.camera);return{x:(this.vector.x+1)*384,y:(1-this.vector.y)*240}}
   place(batch,index,x,y,z,w,h,d,rx=0,rz=0,ry=0){
     this.part.position.set(x,y,z);this.part.rotation.set(rx,ry,rz);this.part.scale.set(w,h,d);this.part.updateMatrix();this.matrix.multiplyMatrices(this.root.matrix,this.part.matrix);batch.setMatrixAt(index,this.matrix);
   }
   actors(battle){
-    const b=this.batches,n=battle.fighters.length,scale=fighterScale(this.mobile,n);
+    const b=this.batches,n=battle.fighters.length,scale=fighterScale(this.mobile,n)*(battle.mode==='race'?.8:1);
     for(const mesh of Object.values(b))mesh.count=n*mesh.userData.parts;
     this.shadows.count=n;this.teamRings.count=n;
     for(const f of battle.fighters){
@@ -96,7 +109,7 @@ export class Renderer {
       const vanished=dead&&deathAge>1.1,p=animalPose(f,this.time,battle.state,this.pose||(this.pose={}),dead?f.deadTime+deathAge:battle.elapsed);
       const hx=0,hy=1.24;
       this.root.position.set(point.x+Math.sin(p.yaw)*p.lunge,dead?.1:p.bob,point.z+Math.cos(p.yaw)*p.lunge);
-      this.root.rotation.set(p.leanX,p.yaw+p.fall*.7,p.leanZ);this.root.scale.set(scale*(vanished?0:1),scale*p.squash*(vanished?0:1),scale*(vanished?0:1));this.root.updateMatrix();
+      this.root.rotation.set(p.leanX+(battle.mode==='infection'?.08:0),p.yaw+p.fall*.7,p.leanZ);this.root.scale.set(scale*(vanished?0:1),scale*p.squash*(vanished?0:1),scale*(vanished?0:1));this.root.updateMatrix();
       this.place(b.body,id,0,0,0,1,1,1);
       this.place(b.smile,id,hx,hy-.12,.46,1,1,1,.24,Math.PI);
       for(let side=0;side<2;side++){
@@ -131,6 +144,7 @@ export class Renderer {
     if(e.type==='attack'){const center=this.project(e.fighter.x,e.fighter.y,1.35),sword=e.fighter.weapon==='sword';this.rings.push({kind:'swing',x:center.x,y:center.y,angle:e.fighter.angle,side:sword?1:e.fighter.attackSide,sword,life:sword?.3:.22,color:e.fighter.color})}
     if(e.type==='hit')this.rings.push({kind:'impact',x:p.x,y:p.y,life:.18,crit:e.crit});
     if(e.type==='skill'){const screen=this.project(e.fighter.x,e.fighter.y,.1);this.rings.push({x:screen.x,y:screen.y,life:.35})}
+    if(e.type==='infect'||e.type==='pickup'){this.numbers.push({x:p.x,y:p.y,text:e.type==='infect'?'감염':({heal:'회복',boost:'가속',shield:'보호막',slip:'미끄럼'}[e.kind]),life:.8,crit:false,color:e.type==='infect'?e.target.color:'#f1d284'})}
     if(e.type==='trap-blast')for(let i=0;i<(this.lowPower?8:18);i++)this.particles.push({x:p.x,y:p.y+16,vx:(Math.random()-.5)*100,vy:-20-Math.random()*55,life:.45,color:i%2?trapType(e).color:trapType(e).activeColor});
     if(e.type==='win')for(let i=0;i<(this.lowPower?30:70);i++)this.particles.push({x:100+Math.random()*568,y:Math.random()*80,vx:(Math.random()-.5)*30,vy:30+Math.random()*40,life:4,color:['#efca74','#cfdb91','#eda181'][i%3]});
     this.particles=this.particles.slice(this.lowPower?-90:-200);this.numbers=this.numbers.slice(-12);this.rings=this.rings.slice(this.lowPower?-32:-64);
@@ -140,14 +154,14 @@ export class Renderer {
     this.time+=dt;this.setMap(battle.map.id);
     if(this.lastBattle!==battle){this.rings=[];this.deathAges.fill(0);this.lastBattle=battle}
     for(const f of battle.fighters)if(f.dead)this.deathAges[f.id]+=dt;
-    this.actors(battle);
+    this.updateCamera(battle,dt);this.actors(battle);updatePickupMesh(this.pickupMesh,battle,this.time);
     this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/(this.activeMap===ART_MAP_ID?18:20),1,battle.ring/(this.activeMap===ART_MAP_ID?19.8:33));
     const center=battle.map.ringCenter??{x:384,y:252},ringPoint=this.activeMap===ART_MAP_ID?artWorldPosition(center.x,center.y):worldPosition(center.x,center.y);this.safeRing.position.set(ringPoint.x,0,ringPoint.z);
     updateTrapMeshes(this.trapMeshes,battle,this.effects);
     this.gl.render(this.scene,this.camera);
     const c=this.c;c.clearRect(0,0,768,480);c.textAlign='center';
     drawTrapLabels(c,battle,(x,y)=>this.project(x,y,.18),this.mobile?20:14);
-    const scale=fighterScale(this.mobile,battle.fighters.length);
+    const scale=fighterScale(this.mobile,battle.fighters.length)*(battle.mode==='race'?.8:1);
     for(const f of battle.alive){
       const p=this.project(f.x,f.y,1.73*scale);
       if(f.hp<100&&battle.fighters.length<=40){c.fillStyle='#172c31';c.fillRect(p.x-12,p.y,24,5);c.fillStyle=f.hp>35?'#a4e38b':'#ffb46d';c.fillRect(p.x-11,p.y+1,22*f.hp/100,3)}
@@ -167,6 +181,7 @@ export class Renderer {
         c.globalAlpha=Math.max(0,ring.life/.35);c.strokeStyle='#fff1b5';c.lineWidth=3;c.beginPath();c.ellipse(ring.x,ring.y,(1-ring.life/.35)*45,(1-ring.life/.35)*22,0,0,Math.PI*2);c.stroke();
       }
     }c.globalAlpha=1;this.rings=this.rings.filter(r=>r.life>0);
+    drawMinimap(c,battle,this.mobile,this.cameraMeta);
 
   }
   dispose(){

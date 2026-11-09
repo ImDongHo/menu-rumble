@@ -55,10 +55,10 @@ function layoutWaypoint(map,f,target){
   let route=routes.get(f);
   if(!route||route.map!==map||route.target!==target||Math.hypot(target.x-route.tx,target.y-route.ty)>48||--route.ttl<=0){
     const points=[];
-    if(!terrainSegmentClear(map,f,target)){
+    if(!terrainSegmentClear(map,f,target,7.99)){
       const {nodes,distances,next}=navigationGraph(map);
-      const starts=nodes.map((node,i)=>({i,d:Math.hypot(f.x-node.x,f.y-node.y)})).filter(({i})=>terrainSegmentClear(map,f,nodes[i]));
-      const ends=nodes.map((node,i)=>({i,d:Math.hypot(target.x-node.x,target.y-node.y)})).filter(({i})=>terrainSegmentClear(map,nodes[i],target));
+      const starts=nodes.map((node,i)=>({i,d:Math.hypot(f.x-node.x,f.y-node.y)})).filter(({i})=>terrainSegmentClear(map,f,nodes[i],7.99));
+      const ends=nodes.map((node,i)=>({i,d:Math.hypot(target.x-node.x,target.y-node.y)})).filter(({i})=>terrainSegmentClear(map,nodes[i],target,7.99));
       let best=Infinity,start=null,end=null;
       for(const a of starts)for(const b of ends){const d=a.d+distances[a.i][b.i]+b.d;if(d<best){best=d;start=a.i;end=b.i}}
       if(start!==null){points.push(nodes[start]);while(start!==end){start=next[start][end];points.push(nodes[start])}}
