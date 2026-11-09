@@ -2,9 +2,10 @@ import {terrainContains,constrainTerrain,terrainWaypoint,terrainSegmentClear} fr
 import {FLAT_MAPS} from './flat-maps.mjs';
 import {ADVENTURE_MAPS,mapBounds} from './adventure-maps.mjs';
 import {prepareAdventure,stepRace,raceStandings,adventureWaypoint,collectRoyaleItems,convertFighter} from './adventure-modes.mjs';
+import {fireAcorn,stepAcorns} from './ranged-combat.mjs';
 import {TrapField,trapWaypoint,trapType} from './traps.mjs';
 export const MODES={classic:{name:'일반 난투',description:'마지막까지 남은 메뉴가 승리해요.'},captain:{name:'대장전',description:'왕관을 쓴 대장이 쓰러지면 해당 팀이 모두 탈락해요.'},traps:{name:'함정전',description:'2초 예고! 폭발·독 장판·충격파를 피해 살아남으세요.'}};
-Object.assign(MODES,{royale:{name:'배틀로얄',description:'폭발·충격파 함정을 피하고 좁아지는 안전 구역에서 살아남으세요.'},race:{name:'레이스',description:'메뉴당 대표 1마리! 감속 함정을 피해 결승선에 먼저 도착하세요.'},infection:{name:'감염전',description:'가스 함정을 피해 상대를 감염시키고 전원을 우리 진영으로 바꾸세요.'}});
+Object.assign(MODES,{royale:{name:'배틀로얄',description:'도토리 발사기를 주워 싸우고, 함정과 좁아지는 안전 구역에서 살아남으세요.'},race:{name:'레이스',description:'메뉴당 대표 1마리! 감속 함정을 피해 결승선에 먼저 도착하세요.'},infection:{name:'감염전',description:'가스 함정을 피해 상대를 감염시키고 전원을 우리 진영으로 바꾸세요.'}});
 export const COLORS = ['#ec6259','#ed9c3e','#ee79a3','#479cdd','#a67b54','#e1bd39','#a884d3','#60aa59','#39b6a2','#ca799b','#7298b3','#b0ba4d','#c17a49','#7e8ed0','#be9992','#8fa26b'];
 export const MAX_FIGHTERS = 160;
 export const WEAPONS = {none:{name:'맨손',multiplier:1},sword:{name:'짧은 검',multiplier:1.1}};
@@ -93,7 +94,7 @@ export class Battle {
     if(this.alive.length<=1||captainOut&&!this.alive.some(other=>other.teamId!==f.teamId)){f.hp=Math.max(1,f.hp);return}
     f.hp = 0; f.dead = true; f.deadTime = this.elapsed;
     this.eliminations.push(f.id);
-    if (killer) { killer.kills++; killer.hp = Math.min(100,killer.hp+12); }
+    if (killer) { killer.kills++; if(!killer.dead)killer.hp = Math.min(100,killer.hp+12); }
     this.events.push({type:'eliminate',fighter:f,killer,cause,x:f.x,y:f.y});
     if(captainOut){
       for(const member of this.alive.filter(other=>other.teamId===f.teamId)){
@@ -103,9 +104,9 @@ export class Battle {
       this.events.push({type:'captain-out',fighter:f,x:f.x,y:f.y});
     }
   }
-  hit(attacker,target,damage,crit = false,area = false) {
+  hit(attacker,target,damage,crit = false,area = false,projectile = false) {
     if (target.dead || target.teamId === attacker.teamId || target.invulnerable > 0) return;
-    if(this.map.layout&&!terrainSegmentClear(this.map,attacker,target,0))return;
+    if(!projectile&&this.map.layout&&!terrainSegmentClear(this.map,attacker,target,0))return;
     // Brief invulnerability stops a surrounding crowd from landing every hit at once.
     // Equal dodge and area-skill chances let a lone survivor occasionally turn a battle.
     if (this.random() < .24) {
@@ -113,7 +114,7 @@ export class Battle {
       this.events.push({type:'dodge',fighter:target,x:target.x,y:target.y-18});
       return;
     }
-    damage = damage*(WEAPONS[attacker.weapon]?.multiplier??1);
+    damage = damage*(projectile?1:WEAPONS[attacker.weapon]?.multiplier??1);
     if(this.mode==='infection'&&this.elapsed>=35){let support=0;for(const other of this.alive)if(Math.hypot(other.x-attacker.x,other.y-attacker.y)<120)support+=other.teamId===attacker.teamId?1:-1;damage*=1+Math.min(4,Math.max(0,support)*.2)}
     target.hp = Math.max(0,target.hp-damage); target.flash = .12; target.hurt=.36;target.hurtStrength=crit?.9:.45; target.stun = .09; target.invulnerable = .34;
     const dx = target.x-attacker.x,dy = target.y-attacker.y,d = Math.hypot(dx,dy)||1;
@@ -152,6 +153,7 @@ export class Battle {
     const alive = this.alive;
     for (const f of shuffle(alive,this.random)) {
       if (f.dead) continue;
+      if(this.mode==='royale'){f.acornCooldown=Math.max(0,f.acornCooldown-dt);f.acornKick=Math.max(0,f.acornKick-dt)}
       for (const key of ['cooldown','retarget','dashCooldown','skillCooldown']) f[key] -= dt;
       for (const key of ['stun','flash','swing','dash','invulnerable','hurt','spin']) f[key] = Math.max(0,f[key]-dt);
       if (!f.target || f.target.dead || f.target.teamId===f.teamId || f.retarget <= 0) {
@@ -197,17 +199,18 @@ export class Battle {
         if (od < o.r+8) { f.x = o.x+ox/od*(o.r+8); f.y = o.y+oy/od*(o.r+8); }
       }
       constrainTerrain(this.map,f,previous);if(this.mode==='royale')collectRoyaleItems(this,f);
+      const fired=this.mode==='royale'&&fireAcorn(this,f,target);
       // Crowding charges the same counterattack for every character. A surrounded
       // survivor can strike several enemies instead of being locked in a damage pile.
       f.skillCooldown -= dt*Math.max(0,nearbyEnemies-2)*.7;
       f.step += dt*(speed > 15 ? 13 : 3);
-      if (this.mode!=='infection' && !evading && f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
+      if (!fired && this.mode!=='infection' && !evading && f.stun <= 0 && f.skillCooldown <= 0 && d < 49) {
         f.skillCooldown = 3.5+this.random()*3; f.spin=.68;f.swing = f.swingTotal = .68;f.attackKind='spin';f.attackSide=f.attacks++%2;
         const burst = this.random() < .13;
         if (burst) { f.invulnerable = .9; this.events.push({type:'comeback',fighter:f,x:f.x,y:f.y-10}); }
         this.events.push({type:'skill',fighter:f,x:f.x,y:f.y-10});
         for (const other of alive) if (!other.dead && other.teamId !== f.teamId && Math.hypot(f.x-other.x,f.y-other.y) < (burst?84:55)) this.hit(f,other,Math.round((28+this.random()*24)*(burst?2.7:1)),true,true);
-      } else if (!evading && !target.dead && d < 33 && f.cooldown <= 0 && f.stun <= 0) {
+      } else if (!fired && !evading && !target.dead && d < 33 && f.cooldown <= 0 && f.stun <= 0) {
         f.cooldown = .3+this.random()*.5; f.swing = f.swingTotal = .48;f.attackKind='punch';f.attackSide=f.attacks++%2;
         this.events.push({type:'attack',fighter:f,x:f.x,y:f.y});
         const crit = this.random() < .19;
@@ -219,6 +222,7 @@ export class Battle {
         if (f.hp <= 0) this.eliminate(f);
       }
     }
+    stepAcorns(this,dt);
     for(const zone of traps?.blasts??[])this.blast(zone);
     for(const zone of traps?.pulses??[])this.trapDamage(zone);
     if(this.mode==='infection')for(const zone of this.traps)if(zone.detonated)this.trapDamage(zone);
@@ -226,7 +230,7 @@ export class Battle {
     const survivingTeams = this.aliveTeams;
     if (survivingTeams.length === 1) {
       this.winner = this.mode==='captain'?this.alive.find(f=>f.isCaptain):this.alive.reduce((best,f) => f.hp > best.hp ? f : best);
-      this.state = 'finished';
+      this.state = 'finished';if(this.projectiles)this.projectiles=[];
       this.events.push({type:'win',fighter:this.winner,x:this.winner.x,y:this.winner.y});
     }
   }
