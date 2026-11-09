@@ -77,3 +77,4 @@ h1{font-size:30px;letter-spacing:-1.3px}.intro-description{font-size:13px;color:
 .arena-top-actions{display:flex;align-items:center;gap:12px}#camera-btn[hidden]{display:none}@media(max-width:480px){.arena-top-actions{gap:7px}#camera-btn{padding:5px 6px;font-size:9px}}
 
 @media(max-width:480px){.mode-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;gap:6px}}
+#paused-banner{pointer-events:none}.arena-frame:has(.arena-3d[data-camera-mode=manual]) #paused-banner{background:transparent;backdrop-filter:none;justify-content:flex-end;padding-bottom:12px;font-size:13px}.arena-3d:focus-visible{outline:3px solid #e2b64d;outline-offset:-3px}

@@ -1,4 +1,5 @@
 import {terrainContains,terrainSegmentClear,terrainWaypoint} from './terrain.mjs';
+import {ACORN} from './ranged-combat.mjs';
 import {mapBounds,courseGeometry} from './adventure-maps.mjs';
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -11,12 +12,13 @@ export function prepareAdventure(b){
   for(const f of b.fighters){f.raceDistance=0;f.lane=lanes[f.id];f.laneGoal=f.lane;f.nextLane=2+b.random()*3;f.boost=0;f.slow=0;f.shield=0;Object.assign(f,coursePoint(b,0,f.lane));f.weapon='none'}
   for(let i=0;i<10;i++){const progress=(i+.6)/10*b.courseLength,kind=['boost','shield','slip'][Math.floor(b.random()*3)],p=coursePoint(b,progress,(b.random()-.5)*80);b.pickups.push({...p,kind,progress,respawnAt:0,id:i})}
  }else if(b.mode==='royale'){
+  b.projectiles=[];b.projectileSerial=0;for(const f of b.fighters)Object.assign(f,{acornAmmo:0,acornCooldown:0,acornKick:0,nextBackstep:0,backstepUntil:0});
   const bounds=mapBounds(b.map),rotation=b.random()*Math.PI*2,available=[];
   for(let y=bounds.y+24;y<bounds.y+bounds.h-24;y+=27)for(let x=bounds.x+24;x<bounds.x+bounds.w-24;x+=29)if(terrainContains(b.map,x,y,14)&&b.map.obstacles.every(o=>Math.hypot(x-o.x,y-o.y)>o.r+14))available.push({x,y});
   for(const team of b.teams){const angle=rotation+team.id/b.teams.length*Math.PI*2,anchor={x:384+Math.cos(angle)*450,y:252+Math.sin(angle)*240};
    for(const f of b.fighters.filter(f=>f.teamId===team.id)){let closest=0;for(let i=1;i<available.length;i++)if(distance(anchor,available[i])<distance(anchor,available[closest]))closest=i;Object.assign(f,available.splice(closest,1)[0])}
   }
-  for(let i=0;i<12;i++){let p;for(let tries=0;tries<200;tries++){p={x:bounds.x+50+b.random()*(bounds.w-100),y:bounds.y+50+b.random()*(bounds.h-100)};if(terrainContains(b.map,p.x,p.y,18)&&b.map.obstacles.every(o=>distance(o,p)>o.r+20))break;p=null}if(p)b.pickups.push({...p,id:i,kind:['heal','boost','shield'][Math.floor(b.random()*3)],respawnAt:0})}
+  for(let i=0;i<12;i++){let p;for(let tries=0;tries<200;tries++){p={x:bounds.x+50+b.random()*(bounds.w-100),y:bounds.y+50+b.random()*(bounds.h-100)};if(terrainContains(b.map,p.x,p.y,18)&&b.map.obstacles.every(o=>distance(o,p)>o.r+20))break;p=null}if(p)b.pickups.push({...p,id:i,kind:i%3===0?'acorn':['heal','boost','shield'][Math.floor(b.random()*3)],respawnAt:0})}
  }
 }
 
@@ -67,7 +69,13 @@ export function stepRace(b,dt){
 export function adventureWaypoint(b,f,target){
  if(b.ring!==null&&Math.hypot(f.x-384,(f.y-252)*1.65)>b.ring-24&&(b.mode!=='infection'||b.infectionRally&&distance(f,target)>80))return terrainWaypoint(b.map,f,b.centerGoal);
  if(b.mode==='royale'){
-  if(!f.nextPlan||b.elapsed>f.nextPlan){f.nextPlan=b.elapsed+.5;f.planGoal=b.pickups.filter(p=>p.respawnAt<=b.elapsed&&distance(f,p)<190).sort((a,c)=>distance(f,a)-distance(f,c))[0]??null}
+  if(f.acornAmmo>0&&distance(f,target)<95){
+   if(b.elapsed>=f.nextBackstep){const d=distance(f,target)||1,p={x:f.x+(f.x-target.x)/d*34,y:f.y+(f.y-target.y)/d*34};f.nextBackstep=b.elapsed+2.5;
+    if(terrainContains(b.map,p.x,p.y,12)&&terrainSegmentClear(b.map,f,p,10)&&b.map.obstacles.every(o=>distance(p,o)>o.r+12)&&(b.ring===null||Math.hypot(p.x-384,(p.y-252)*1.65)<b.ring-16)){f.backstepGoal=p;f.backstepUntil=b.elapsed+.35}
+   }
+   if(f.backstepGoal&&b.elapsed<f.backstepUntil)return f.backstepGoal;
+  }
+  if(!f.nextPlan||b.elapsed>f.nextPlan){f.nextPlan=b.elapsed+.5;f.planGoal=b.pickups.filter(p=>p.respawnAt<=b.elapsed&&distance(f,p)<190&&(p.kind!=='acorn'||!f.acornAmmo)).sort((a,c)=>distance(f,a)-distance(f,c))[0]??null}
   if(f.planGoal&&f.planGoal.respawnAt<=b.elapsed&&distance(f,target)>65)return terrainWaypoint(b.map,f,f.planGoal);
  }else if(b.mode==='infection'&&b.elapsed<28){
   if(!f.nextPlan||b.elapsed>=f.nextPlan){
@@ -82,8 +90,8 @@ export function adventureWaypoint(b,f,target){
 }
 export function collectRoyaleItems(b,f){
  for(const item of b.pickups)if(item.respawnAt<=b.elapsed&&distance(f,item)<20){
-  if(item.kind==='heal')f.hp=Math.min(100,f.hp+30);else if(item.kind==='boost')f.boost=3;else f.invulnerable=Math.max(f.invulnerable,2);
-  item.respawnAt=b.elapsed+9;b.events.push({type:'pickup',kind:item.kind,fighter:f,x:f.x,y:f.y});
+  if(item.kind==='acorn'){f.acornAmmo=ACORN.ammo;f.acornCooldown=.25}else if(item.kind==='heal')f.hp=Math.min(100,f.hp+30);else if(item.kind==='boost')f.boost=3;else f.invulnerable=Math.max(f.invulnerable,2);
+  item.respawnAt=b.elapsed+(item.kind==='acorn'?12:9);b.events.push({type:'pickup',kind:item.kind,fighter:f,x:f.x,y:f.y});
  }
 }
 export function convertFighter(b,f,attacker){

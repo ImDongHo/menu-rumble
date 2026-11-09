@@ -1,7 +1,8 @@
 import * as THREE from './vendor/three.module.js';
 import {mapBounds,overviewTransform,surfaceColor,courseGeometry} from './adventure-maps.mjs';
 import {drawFlatGround,drawFlatProps} from './flat-scenery.mjs';
-export const PICKUP_COLORS={heal:'#8cde9b',boost:'#f0c568',shield:'#8dcbe8',slip:'#d098bd'};
+import {drawLauncher} from './acorn-model.mjs';
+export const PICKUP_COLORS={heal:'#8cde9b',boost:'#f0c568',shield:'#8dcbe8',slip:'#d098bd',acorn:'#d5ac62'};
 export function drawAdventureMap(c,map){
  c.save();const t=overviewTransform(map);c.translate(t.x,t.y);c.scale(t.scale,t.scale);const b=mapBounds(map);
  drawFlatGround(c,map,b.x-100,b.y-100,b.w+200,b.h+200);drawFlatProps(c,map);
@@ -22,11 +23,11 @@ export function drawAdventureMap(c,map){
 export function createPickupMesh(){const mesh=new THREE.InstancedMesh(new THREE.OctahedronGeometry(.42),new THREE.MeshBasicMaterial({color:0xffffff}),16);mesh.count=0;mesh.frustumCulled=false;return mesh}
 const dummy=new THREE.Object3D(),color=new THREE.Color();
 export function updatePickupMesh(mesh,battle,time){
- const active=(battle.pickups??[]).filter(p=>p.respawnAt<=battle.elapsed);mesh.count=active.length;
+ const active=(battle.pickups??[]).filter(p=>p.kind!=='acorn'&&p.respawnAt<=battle.elapsed);mesh.count=active.length;
  active.forEach((p,i)=>{dummy.position.set((p.x-384)/20,.6+Math.sin(time*2+p.id)*.08,(p.y-252)/20);dummy.rotation.set(0,time*.7,0);dummy.scale.setScalar(1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,color.set(PICKUP_COLORS[p.kind]))});mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
 }
 export function drawAdventurePickups(c,battle){
- c.save();for(const p of battle.pickups??[]){if(p.respawnAt>battle.elapsed)continue;c.fillStyle=PICKUP_COLORS[p.kind];c.beginPath();c.moveTo(p.x,p.y-7);c.lineTo(p.x+7,p.y);c.lineTo(p.x,p.y+7);c.lineTo(p.x-7,p.y);c.closePath();c.fill()}c.restore();
+ c.save();for(const p of battle.pickups??[]){if(p.respawnAt>battle.elapsed)continue;if(p.kind==='acorn'){drawLauncher(c,p.x,p.y-8,30);continue}c.fillStyle=PICKUP_COLORS[p.kind];c.beginPath();c.moveTo(p.x,p.y-7);c.lineTo(p.x+7,p.y);c.lineTo(p.x,p.y+7);c.lineTo(p.x-7,p.y);c.closePath();c.fill()}c.restore();
 }
 export function drawMinimap(c,battle,mobile=false,camera=null){
  if(!battle.map.large)return;const b=mapBounds(battle.map),w=mobile?200:164,h=mobile?126:104,x=768-w-14,y=480-h-16,scale=Math.min((w-14)/b.w,(h-20)/b.h),ox=x+w/2-(b.x+b.w/2)*scale,oy=y+(h+8)/2-(b.y+b.h/2)*scale;

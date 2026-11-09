@@ -3,6 +3,7 @@ import {terrainContains} from './terrain.mjs';
 import {drawFlatGround,drawFlatProps,sceneryStyle} from './flat-scenery.mjs';
 import {drawFlatTraps,drawTrapLabels,drawTrapHud,trapType} from './traps.mjs';
 import {drawAdventureMap,drawAdventurePickups,drawMinimap} from './adventure-display.mjs';
+import {drawLauncher,drawFlatAcorns,drawAcornLabels} from './acorn-model.mjs';
 import {overviewTransform,mapBounds} from './adventure-maps.mjs';
 import{MAPS,seededRandom}from'./engine.mjs';
 const W=768,H=480;
@@ -69,7 +70,7 @@ export function drawFighter(c,f,time=0,scale=1,showLabel=true,labelSize=9){
  rect(c,-9,-10,3,5,outline);rect(c,7,-10,3,5,outline);rect(c,-9,-9,2,3,'#ffe5b9');rect(c,8,-9,2,3,'#ffe5b9');
  const headGradient=c.createRadialGradient(-3,-22,1,0,-19,8);headGradient.addColorStop(0,'#fff8df');headGradient.addColorStop(1,'#d8ba93');c.fillStyle=outline;c.beginPath();c.arc(0,-19,8,0,Math.PI*2);c.fill();c.fillStyle=headGradient;c.beginPath();c.arc(0,-19,7,0,Math.PI*2);c.fill();
  const ex=f.face>0?1:-1;rect(c,ex-3,-19,2,2,outline);rect(c,ex+2,-19,2,2,outline);
- if(f.weapon==='sword'){const side=f.face>0?1:-1;rect(c,side*10-1,-15,2,11,'#dce3d4');rect(c,side*10-3,-5,6,2,'#d7b66e');rect(c,side*10-1,-3,2,4,'#765538')}
+ if((f.acornAmmo??0)>0||(f.acornKick??0)>0)drawLauncher(c,7,-12,29,f.angle??0);else if(f.weapon==='sword'){const side=f.face>0?1:-1;rect(c,side*10-1,-15,2,11,'#dce3d4');rect(c,side*10-3,-5,6,2,'#d7b66e');rect(c,side*10-1,-3,2,4,'#765538')}
  if(f.flash>0){c.globalAlpha=.6;rect(c,-6,-23,12,21,'#fff8d5');c.globalAlpha=1}
  if(f.swing>0){c.save();c.rotate(f.angle);c.strokeStyle='#fffae3';c.lineWidth=3;c.beginPath();c.arc(0,-8,20,-.7,.7);c.stroke();c.restore()}
  c.translate(0,-bob);
@@ -98,9 +99,10 @@ export class Renderer{
   const entities=[...battle.map.obstacles.map(o=>({kind:'pillar',y:o.y,o})),...battle.fighters.map(f=>({kind:'fighter',y:f.y,f}))].sort((a,b)=>a.y-b.y);
   const representatives=new Map();for(const f of battle.alive)if(!representatives.has(f.teamId))representatives.set(f.teamId,f.id);
   for(const e of entities)if(e.kind==='pillar'){if(battle.map.id===ART_MAP_ID){const r=artPillarRect(e.o);c.save();c.beginPath();c.rect(r.x,r.y,r.w,r.h);c.clip();c.drawImage(this.backgrounds.get(battle.map.id),0,0);if(battle.map.large){const t=overviewTransform(battle.map);c.save();c.translate(t.x,t.y);c.scale(t.scale,t.scale);drawAdventurePickups(c,battle)}c.restore()}else pillar(c,e.o,battle.map)}else{const f=e.f;if(f.dead&&battle.elapsed-f.deadTime>2)continue;if(battle.state==='ready')f.step=this.time*2+f.id;const display=battle.map.id===ART_MAP_ID?{...f,...projectArtPoint(f.x,f.y)}:f;drawFighter(c,display,this.time,this.mobile?1.15:1,false,this.mobile?12:9);if(battle.state==='finished'&&battle.winner===f&&!f.isCaptain){c.fillStyle='#f4d585';c.font='19px sans-serif';c.textAlign='center';c.fillText('♛',display.x,display.y-57+Math.sin(this.time*3)*2)}}
+  drawFlatAcorns(c,battle);
   for(const p of this.particles){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.max<2)p.vy+=100*dt;c.globalAlpha=Math.max(0,p.life/p.max);rect(c,p.x,p.y,p.size,p.size,p.color)}c.globalAlpha=1;this.particles=this.particles.filter(p=>p.life>0);
   for(const n of this.numbers){n.life-=dt;n.y-=dt*23;c.globalAlpha=Math.min(1,Math.max(0,n.life*3));c.font=`800 ${n.crit?16:12}px Outfit,sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#294532';c.strokeText(n.text+(n.crit?'!':''),n.x,n.y);c.fillStyle=n.color??(n.crit?'#ffe09a':'#fffbdc');c.fillText(n.text+(n.crit?'!':''),n.x,n.y)}c.globalAlpha=1;this.numbers=this.numbers.filter(n=>n.life>0);
-  if(battle.map.id==='moon'){for(let i=0;i<22;i++){const x=40+(i*103)%700+Math.sin(this.time*.7+i)*8,y=30+(i*71)%410+Math.cos(this.time*.5+i)*8;c.globalAlpha=.25+Math.sin(this.time+i)*.15;rect(c,x,y,2,2,'#e1e4cd')}c.globalAlpha=1}drawTrapLabels(c,battle,battle.map.art?projectArtPoint:(x,y)=>({x,y}),this.mobile?20:14);if(battle.map.large)c.restore();drawMinimap(c,battle,this.mobile);drawTrapHud(c,battle,this.mobile);c.restore();
+  if(battle.map.id==='moon'){for(let i=0;i<22;i++){const x=40+(i*103)%700+Math.sin(this.time*.7+i)*8,y=30+(i*71)%410+Math.cos(this.time*.5+i)*8;c.globalAlpha=.25+Math.sin(this.time+i)*.15;rect(c,x,y,2,2,'#e1e4cd')}c.globalAlpha=1}drawAcornLabels(c,battle,(x,y,h)=>({x,y:y-h*20}),this.mobile);drawTrapLabels(c,battle,battle.map.art?projectArtPoint:(x,y)=>({x,y}),this.mobile?20:14);if(battle.map.large)c.restore();drawMinimap(c,battle,this.mobile);drawTrapHud(c,battle,this.mobile);c.restore();
  }
  dispose(){for(const canvas of this.backgrounds.values())canvas.cancelMapArt?.();this.backgrounds.clear();this.particles=[];this.numbers=[]}
 
