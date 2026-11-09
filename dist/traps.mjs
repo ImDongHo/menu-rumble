@@ -17,8 +17,9 @@ export function trapFits(map,x,y,r=TRAP_RADIUS){
 export class TrapField{
   constructor(map,random){
     this.random=random;this.zones=[];this.nextWaveAt=1.2;this.serial=0;
-    this.candidates=[];
-    for(let y=110;y<=400;y+=10)for(let x=100;x<=670;x+=10)if(trapFits(map,x,y))this.candidates.push({x,y});
+    this.sites=(map.hazards??[]).filter(p=>trapFits(map,p.x,p.y,p.r));
+    this.candidates=[...this.sites];
+    if(!map.hazards){const b=map.bounds??{x:100,y:110,w:570,h:290};for(let y=b.y;y<=b.y+b.h;y+=10)for(let x=b.x;x<=b.x+b.w;x+=10)if(trapFits(map,x,y))this.candidates.push({x,y})}
   }
   advance(elapsed){
     const blasts=[],pulses=[];
@@ -38,9 +39,9 @@ export class TrapField{
           if(distance(candidates[probe])<distance(candidates[index]))index=probe;
         }
         const point=candidates.splice(index,1)[0];
-        if(this.zones.some(z=>Math.hypot(z.x-point.x,z.y-point.y)<TRAP_RADIUS*2+24))continue;
-        const kind=kinds[Math.floor(this.random()*kinds.length)],blastAt=elapsed+TRAP_WARNING;
-        this.zones.push({...point,kind,id:++this.serial,r:TRAP_RADIUS,createdAt:elapsed,blastAt,expiresAt:blastAt+TRAP_TYPES[kind].duration,nextTickAt:blastAt+(TRAP_TYPES[kind].tickEvery??Infinity),detonated:false});warned=true;
+        if(this.zones.some(z=>Math.hypot(z.x-point.x,z.y-point.y)<(z.r??TRAP_RADIUS)+(point.r??TRAP_RADIUS)+24))continue;
+        const kind=point.kind??kinds[Math.floor(this.random()*kinds.length)],blastAt=elapsed+TRAP_WARNING;
+        this.zones.push({...point,kind,id:++this.serial,r:point.r??TRAP_RADIUS,createdAt:elapsed,blastAt,expiresAt:blastAt+TRAP_TYPES[kind].duration,nextTickAt:blastAt+(TRAP_TYPES[kind].tickEvery??Infinity),detonated:false});warned=true;
       }
       this.nextWaveAt=elapsed+Math.max(3.3,5-elapsed*.025);
     }
@@ -67,23 +68,41 @@ export function trapWaypoint(map,f,target,zones,elapsed=Infinity){
   return target;
 }
 
+// Labels sit above the hazard edge so crowds cannot hide the countdown.
 export function drawTrapLabels(c,battle,project,labelSize=14){
   c.save();c.textAlign='center';c.textBaseline='middle';c.font=`800 ${labelSize}px sans-serif`;
+  for(const site of battle.trapField?.sites??[]){if((battle.traps??[]).some(z=>z.x===site.x&&z.y===site.y))continue;const p=project(site.x,site.y);c.strokeStyle='#152630';c.lineWidth=4;c.fillStyle='#ffd578';c.strokeText('!',p.x,p.y);c.fillText('!',p.x,p.y)}
   for(const zone of battle.traps??[]){
-    if(zone.detonated&&zone.kind!=='poison')continue;const p=project(zone.x,zone.y),type=trapType(zone);
-    c.lineWidth=3;c.strokeStyle='#26392f';c.fillStyle=type.activeColor;const text=zone.detonated?'독':`${type.short} ${Math.max(1,Math.ceil(zone.blastAt-battle.elapsed))}`;
-    c.strokeText(text,p.x,p.y);c.fillText(text,p.x,p.y);
+    const p=project(zone.x,zone.y),edge=project(zone.x,zone.y-zone.r),type=trapType(zone);
+    const short=battle.mode==='infection'?'가스':battle.mode==='race'?'감속':type.short;
+    const text=zone.detonated?`${short} 발동!`:`${short} · ${Math.max(1,Math.ceil(zone.blastAt-battle.elapsed))}초`;
+    const w=c.measureText(text).width+20,h=labelSize+12,y=edge.y-h/2-5;
+    c.fillStyle='#152630f5';c.strokeStyle=type.color;c.lineWidth=2;
+    c.beginPath();c.roundRect(p.x-w/2,y-h/2,w,h,5);c.fill();c.stroke();
+    c.fillStyle=zone.detonated?type.activeColor:'#ffffff';c.fillText(text,p.x,y);
+    c.strokeStyle=type.color;c.beginPath();c.moveTo(p.x,y+h/2);c.lineTo(p.x,p.y);c.stroke();
+    c.fillStyle=type.color;c.beginPath();c.arc(p.x,p.y,3,0,Math.PI*2);c.fill();
   }
   c.restore();
 }
-export function drawFlatTraps(c,battle,project,labelSize=14){
+export function drawTrapHud(c,battle,mobile=false){
+  if(!battle.trapField)return;
+  const zones=battle.traps??[],active=zones.filter(z=>z.detonated),warning=zones.filter(z=>!z.detonated);
+  const text=battle.state==='finished'?'함정 작동 종료':active.length?`함정 발동 중 · ${active.length}곳`:warning.length?`함정 경고 · ${Math.max(1,Math.ceil(Math.min(...warning.map(z=>z.blastAt))-battle.elapsed))}초 뒤 발동`:battle.mode==='race'?'감속 함정 · 2초 예고':battle.mode==='infection'?'가스 함정 · 2초 예고':battle.mode==='royale'?'폭발 · 충격파 · 2초 예고':'폭발 · 독 장판 · 충격파';
+  c.save();c.font=`bold ${mobile?18:13}px sans-serif`;c.textAlign='right';c.textBaseline='middle';const w=c.measureText(text).width+28,x=mobile?14:754-w,y=mobile?430:58;
+  c.fillStyle='#152630ee';c.strokeStyle=active.length?'#fff1b3':'#ffb94e';c.lineWidth=2;c.beginPath();c.roundRect(x,y,w,30,6);c.fill();c.stroke();c.fillStyle='#fff7dd';c.fillText(text,x+w-13,y+15);c.restore();
+}
+export function drawFlatTraps(c,battle,project){
   c.save();
+  for(const site of battle.trapField?.sites??[]){const p=project(site.x,site.y),rx=Math.abs(project(site.x+site.r,site.y).x-p.x),ry=Math.abs(project(site.x,site.y+site.r).y-p.y);c.fillStyle='#26323d';c.strokeStyle='#f7c675';c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();c.ellipse(p.x,p.y,rx,ry,0,0,Math.PI*2);c.fill();c.stroke();c.setLineDash([])}
   for(const zone of battle.traps??[]){
     const p=project(zone.x,zone.y),rx=Math.abs(project(zone.x+zone.r,zone.y).x-p.x),ry=Math.abs(project(zone.x,zone.y+zone.r).y-p.y);
     const type=trapType(zone),progress=zone.detonated?(zone.kind==='shockwave'?Math.min(1,(battle.elapsed-zone.blastAt)/type.duration):1):Math.max(0,Math.min(1,(battle.elapsed-zone.createdAt)/TRAP_WARNING));
-    c.fillStyle=type.color+(zone.detonated?'66':'44');c.strokeStyle=zone.detonated?type.activeColor:type.color;c.lineWidth=3;
-    c.setLineDash(zone.detonated?[]:[5,3]);c.beginPath();c.ellipse(p.x,p.y,rx,ry,0,0,Math.PI*2);c.fill();c.stroke();
-    c.setLineDash([]);c.beginPath();c.ellipse(p.x,p.y,rx*.82,ry*.82,0,-Math.PI/2,-Math.PI/2+Math.PI*2*progress);c.stroke();
+    c.fillStyle='#192731cc';c.beginPath();c.ellipse(p.x,p.y,rx*1.07,ry*1.07,0,0,Math.PI*2);c.fill();
+    c.fillStyle=type.color+(zone.detonated?'aa':'77');c.strokeStyle=zone.detonated?type.activeColor:type.color;c.lineWidth=4;
+    c.beginPath();c.ellipse(p.x,p.y,rx,ry,0,0,Math.PI*2);c.fill();c.stroke();
+    c.lineWidth=3;c.beginPath();c.ellipse(p.x,p.y,rx*.75,ry*.75,0,-Math.PI/2,-Math.PI/2+Math.PI*2*progress);c.stroke();
+    if(zone.detonated){c.strokeStyle=type.activeColor;for(let i=0;i<8;i++){const a=i*Math.PI/4;c.beginPath();c.moveTo(p.x+Math.cos(a)*rx*.4,p.y+Math.sin(a)*ry*.4);c.lineTo(p.x+Math.cos(a)*rx*.8,p.y+Math.sin(a)*ry*.8);c.stroke()}}
   }
-  c.restore();drawTrapLabels(c,battle,project,labelSize);
+  c.restore();
 }

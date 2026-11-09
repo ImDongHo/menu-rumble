@@ -120,3 +120,52 @@ test('all three new modes use their own rules for independent win estimates',()=
   assert.deepEqual(result.wins,wins);assert.equal(result.rounds,8);assert.equal(live.winner,null);assert.equal(live.elapsed,0);
  }
 });
+
+test('dedicated map traps occupy safe visible pads and activate independently of team sizes',()=>{
+ for(const mode of modes){
+  const small=new Battle(['A','B'],undefined,97,mode),large=new Battle(Array.from({length:16},(_,i)=>({name:'T'+i,count:10})),undefined,97,mode);
+  assert.equal(small.trapField.sites.length,small.map.hazards.length);assert.ok(small.trapField.sites.length>=5);
+  assert.equal(small.traps.length,0);assert.equal(small.winner,null);
+  for(const site of small.trapField.sites)for(let a=0;a<Math.PI*2;a+=.2)assert.ok(terrainContains(small.map,site.x+Math.cos(a)*site.r,site.y+Math.sin(a)*site.r,10),mode);
+  const locations=new Set();for(let time=1.2;time<80;time+=.05){const a=small.trapField.advance(time),b=large.trapField.advance(time);assert.deepEqual(a,b);assert.deepEqual(small.traps,large.traps);for(const z of small.traps){locations.add(z.x+','+z.y);assert.ok(Math.abs(z.blastAt-z.createdAt-2)<1e-8)}}
+  assert.equal(locations.size,small.trapField.sites.length);
+ }
+});
+
+test('racers entering an active trap slow once while a shield protects without health loss',()=>{
+ const b=new Battle(['A','B'],undefined,13,'race');b.pickups=[];b.elapsed=2;b.trapField.nextWaveAt=Infinity;
+ const p=coursePoint(b,500,0),zone={...p,id:1,kind:'shockwave',r:32,createdAt:0,blastAt:2,expiresAt:2.55,detonated:true};b.trapField.zones=[zone];
+ for(const f of b.fighters)Object.assign(f,{...p,raceDistance:499,lane:0,laneGoal:0,nextLane:Infinity,bumpUntil:Infinity});b.fighters[1].shield=4;b.start();b.step(.025);
+ assert.equal(b.fighters[0].slow,1.4);assert.equal(b.fighters[1].slow,0);assert.equal(b.fighters[1].shield,0);assert.equal(b.drainEvents().filter(e=>e.type==='trap-effect').length,2);
+ const before=b.fighters.map(f=>f.raceDistance);b.step(.025);assert.ok(b.fighters[0].raceDistance-before[0]<b.fighters[1].raceDistance-before[1]);assert.equal(b.fighters[1].slow,0);assert.ok(b.fighters[0].slow<1.4);assert.equal(b.drainEvents().filter(e=>e.type==='trap-effect').length,0);
+ assert.ok(b.fighters.every(f=>f.hp===100&&!f.dead));
+});
+
+test('lab gas staggers fighters without eliminating, damaging or converting any faction',()=>{
+ const b=new Battle(['A','B'],undefined,13,'infection');b.elapsed=2;b.trapField.nextWaveAt=Infinity;
+ b.trapField.zones=[{x:384,y:252,id:1,kind:'poison',r:36,createdAt:0,blastAt:2,expiresAt:5,nextTickAt:2.5,detonated:true}];
+ b.fighters.forEach((f,i)=>Object.assign(f,{x:360+i*5,y:252,cooldown:Infinity,skillCooldown:Infinity,trapReaction:Infinity}));const teams=b.fighters.map(f=>f.teamId);b.start();b.step(.025);
+ assert.equal(b.alive.length,10);assert.equal(b.conversions,0);assert.deepEqual(b.fighters.map(f=>f.teamId),teams);assert.ok(b.fighters.every(f=>f.hp===100&&f.stun===.45&&f.trapSlow===1.6));
+ b.step(.025);assert.ok(b.fighters.every(f=>f.stun<.45&&f.trapSlow<1.6));assert.equal(b.eliminations.length,0);
+});
+
+test('island explosions use real damage and knockback with the same rule for each team',()=>{
+ const b=new Battle([{name:'A',count:1},{name:'B',count:1}],undefined,13,'royale');b.fighters.forEach((f,i)=>Object.assign(f,{x:380+i*8,y:252,hp:100}));b.blast({kind:'blast',x:384,y:252,r:36});
+ assert.ok(b.fighters.every(f=>f.hp===65&&Math.abs(f.vx)===110));assert.equal(b.fighters[0].vx,-b.fighters[1].vx);
+});
+
+test('new map hazards affect real races and infection matches with valid winners',()=>{
+ for(const mode of ['race','infection']){let hits=0;
+  for(const seed of[9457,18914,28371,37828]){const b=new Battle(['A','B','C','D','E','F','G','H'],undefined,seed,mode);b.start();for(let step=0;step<6000&&b.state==='running';step++){b.step(1/60);hits+=b.drainEvents().filter(e=>e.type==='trap-effect').length}assert.equal(b.state,'finished');assert.ok(b.fighters.every(f=>!f.dead));if(mode==='infection')assert.equal(b.aliveTeams.length,1)}
+  assert.ok(hits>0,mode);
+ }
+});
+
+test('gas slowdown still applies while a fighter dashes or escapes a danger zone',()=>{
+ for(const evading of[false,true]){
+  const games=[0,1.6].map(slow=>{const b=new Battle([{name:'A',count:1},{name:'B',count:1}],undefined,13,'infection');b.elapsed=2;b.trapField.nextWaveAt=Infinity;
+   if(evading)b.trapField.zones=[{x:384,y:252,r:36,kind:'poison',id:1,createdAt:0,blastAt:2,expiresAt:5,nextTickAt:2.5,detonated:true}];
+   Object.assign(b.fighters[0],{x:384,y:252,dash:.18,trapSlow:slow});Object.assign(b.fighters[1],{x:750,y:252});b.start();b.step(.025);return b});
+  const distances=games.map(b=>Math.hypot(b.fighters[0].x-384,b.fighters[0].y-252));assert.ok(distances[0]>0);assert.ok(Math.abs(distances[1]/distances[0]-.55)<1e-8);
+ }
+});

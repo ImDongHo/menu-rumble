@@ -6,13 +6,16 @@ export const ADVENTURE_MAPS=[
   holes:[[[130,130],[240,130],[240,218],[130,218]],[[130,286],[240,286],[240,374],[130,374]],[[528,130],[638,130],[638,218],[528,218]],[[528,286],[638,286],[638,374],[528,374]]],
   bridges:[{x:130,y:218,w:110,h:68},{x:528,y:218,w:110,h:68}],navigation:grid([40,284,484,728],[60,252,460]),
   obstacles:[{x:-30,y:50,r:22},{x:798,y:50,r:22},{x:-30,y:454,r:22},{x:798,y:454,r:22},{x:330,y:70,r:18},{x:438,y:434,r:18}],
+  hazards:[{x:70,y:252,kind:'blast',r:36},{x:296,y:252,kind:'shockwave',r:36},{x:472,y:252,kind:'blast',r:36},{x:698,y:252,kind:'shockwave',r:36},{x:384,y:154,kind:'blast',r:36},{x:384,y:350,kind:'blast',r:36}],
   overview:22,surfaces:['#9cb991','#d3bd89','#a4b6ae','#b5a891']},
  {...common,id:'relic-circuit',name:'유적 순환 코스',english:'RELIC CIRCUIT',subtitle:'직선·S자 굽이·아이템을 지나 결승선으로',modes:['race'],kind:'circuit',theme:'sand',floor:'#d1b17a',tile:'#e2c28b',edge:'#8a724d',accent:'#f4dfb1',
   bounds:{x:-190,y:0,w:1150,h:510},terrain:[[-150,0],[920,0],[960,40],[960,470],[920,510],[-150,510],[-190,470],[-190,40]],holes:[[[-20,184],[780,184],[780,330],[-20,330]]],obstacles:[],
+  hazards:[{x:250,y:90,kind:'shockwave',r:32},{x:860,y:90,kind:'shockwave',r:32},{x:900,y:252,kind:'shockwave',r:32},{x:640,y:420,kind:'shockwave',r:32},{x:80,y:420,kind:'shockwave',r:32},{x:-120,y:252,kind:'shockwave',r:32}],
   course:[[40,90],[280,90],[400,140],[540,90],[860,90],[900,240],[820,420],[500,420],[340,370],[160,420],[-60,420],[-120,252],[-60,90],[40,90]],overview:22},
  {...common,id:'sealed-lab',name:'폐쇄 연구단지',english:'SEALED LAB',subtitle:'세 마당과 순환 통로를 잇는 감염 전장',modes:['infection'],kind:'lab',theme:'moon',floor:'#858d9f',tile:'#a1a9b9',edge:'#48566c',accent:'#b2dbba',ground:'#435064',light:'#71899a',
   bounds:{x:-56,y:12,w:880,h:480},terrain:[[-16,12],[784,12],[824,52],[824,452],[784,492],[-16,492],[-56,452],[-56,52]],
   holes:[[[80,108],[260,108],[260,188],[80,188]],[[508,108],[688,108],[688,188],[508,188]],[[80,316],[260,316],[260,396],[80,396]],[[508,316],[688,316],[688,396],[508,396]]],
+  hazards:[{x:384,y:64,kind:'poison',r:32},{x:384,y:252,kind:'poison',r:36},{x:384,y:440,kind:'poison',r:32},{x:16,y:252,kind:'poison',r:32},{x:752,y:252,kind:'poison',r:32}],
   navigation:grid([20,300,468,748],[60,252,444]),obstacles:[],overview:19}
 ];
 export function mapBounds(map){return map.bounds??{x:76,y:90,w:616,h:324}}

@@ -35,6 +35,7 @@ export function drawMinimap(c,battle,mobile=false,camera=null){
  for(const polygon of[battle.map.terrain,...battle.map.holes??[]]){c.beginPath();polygon.forEach(([px,py],i)=>i?c.lineTo(ox+px*scale,oy+py*scale):c.moveTo(ox+px*scale,oy+py*scale));c.closePath();c.fillStyle=polygon===battle.map.terrain?'#829181':'#334752';c.fill()}
  if(battle.map.course){c.strokeStyle='#f0dcaa';c.lineWidth=1;c.beginPath();courseGeometry(battle.map).preview.forEach(([px,py],i)=>i?c.lineTo(ox+px*scale,oy+py*scale):c.moveTo(ox+px*scale,oy+py*scale));c.stroke()}
  if(battle.ring!==null){c.strokeStyle='#ffe2a0';c.beginPath();c.ellipse(ox+384*scale,oy+252*scale,battle.ring*scale,battle.ring/1.65*scale,0,0,Math.PI*2);c.stroke()}
+ for(const p of battle.trapField?.sites??[]){const zone=battle.traps.find(z=>z.x===p.x&&z.y===p.y);c.fillStyle=zone?.detonated?'#fff4c2':zone?'#ff7857':'#edbb5d';c.fillRect(ox+p.x*scale-2.5,oy+p.y*scale-2.5,5,5)}
  for(const f of battle.alive){c.fillStyle=f.color;c.beginPath();c.arc(ox+f.x*scale,oy+f.y*scale,battle.mode==='race'?2.6:1.9,0,Math.PI*2);c.fill()}
  if(camera){c.strokeStyle='#fff7c299';c.strokeRect(ox+(camera.x-camera.w/2)*scale,oy+(camera.y-camera.h/2)*scale,camera.w*scale,camera.h*scale)}
  c.restore();c.restore();

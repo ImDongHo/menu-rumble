@@ -33,10 +33,14 @@ export function coursePoint(b,progress,lane=0){
 export function raceStandings(b){return [...b.fighters].sort((a,c)=>a===c?0:a===b.winner?-1:c===b.winner?1:a.finishTime!=null&&c.finishTime!=null?a.finishTime-c.finishTime:a.finishTime!=null?-1:c.finishTime!=null?1:c.raceDistance-a.raceDistance)}
 export function finishAdventure(b,winner){b.winner=winner;b.state='finished';b.events.push({type:'win',fighter:winner,x:winner.x,y:winner.y})}
 export function stepRace(b,dt){
- const previousTime=b.elapsed;b.elapsed+=dt;const order=[...b.fighters];for(let i=order.length-1;i>0;i--){const j=Math.floor(b.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+ const previousTime=b.elapsed;b.elapsed+=dt;const wave=b.trapField?.advance(b.elapsed);
+ if(wave?.warned)b.events.push({type:'trap-warning',x:384,y:252});
+ const order=[...b.fighters];for(let i=order.length-1;i>0;i--){const j=Math.floor(b.random()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
  for(const f of order){
   f.boost=Math.max(0,f.boost-dt);f.slow=Math.max(0,f.slow-dt);f.shield=Math.max(0,f.shield-dt);
   if(b.elapsed>=f.nextLane){f.laneGoal=(b.random()-.5)*110;f.nextLane=b.elapsed+2+b.random()*3}
+  const danger=b.traps.find(z=>!z.detonated&&distance(f,z)<z.r+80&&b.elapsed>=z.createdAt+(f.trapReaction??0));
+  if(danger){const left=coursePoint(b,f.raceDistance,-55),right=coursePoint(b,f.raceDistance,55);f.laneGoal=distance(left,danger)>distance(right,danger)?-55:55}
   f.lane+=(f.laneGoal-f.lane)*Math.min(1,dt*1.4);
   const old=f.raceDistance,speed=80*(f.boost>0?1.45:1)*(f.slow>0?.55:1);
   f.raceDistance=Math.min(b.courseLength,old+speed*dt);const p=coursePoint(b,f.raceDistance,f.lane),ahead=coursePoint(b,Math.min(b.courseLength,f.raceDistance+5),f.lane);
@@ -53,6 +57,8 @@ export function stepRace(b,dt){
   const trailing=Math.abs(a.raceDistance-c.raceDistance)<1e-9?(b.random()>.5?a:c):a.raceDistance<c.raceDistance?a:c;if(trailing.shield<=0)trailing.slow=Math.max(trailing.slow,.25);
   a.bumpUntil=c.bumpUntil=b.elapsed+.8;const side=b.random()>.5?1:-1;a.laneGoal=Math.max(-55,Math.min(55,a.laneGoal+side*16));c.laneGoal=Math.max(-55,Math.min(55,c.laneGoal-side*16));
  }
+ for(const zone of wave?.blasts??[])b.blast(zone);
+ for(const zone of b.traps)if(zone.detonated)b.trapDamage(zone);
  const finishers=b.fighters.filter(f=>f.finishTime!=null);if(finishers.length){
   const best=Math.min(...finishers.map(f=>f.finishTime)),tied=finishers.filter(f=>Math.abs(f.finishTime-best)<1e-9),winner=tied[Math.floor(b.random()*tied.length)];b.elapsed=best;finishAdventure(b,winner);
  }
