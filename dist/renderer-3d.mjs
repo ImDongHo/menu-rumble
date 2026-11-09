@@ -7,8 +7,8 @@ import {createTerrainFloor,createFlatBackdrop} from './outdoor-model.mjs';
 import {fighterScale} from './display-model.mjs';
 import {animalKind,animalPose,fighterArm,heldSword} from './animal-motion.mjs?v=soft-beans-2';
 import {disposeScene} from './resource-cleanup.mjs';
-import {drawTrapLabels,trapType} from './traps.mjs';
-import {createTrapMeshes,updateTrapMeshes} from './trap-model.mjs';
+import {drawTrapLabels,drawTrapHud,trapType} from './traps.mjs';
+import {createTrapMeshes,updateTrapMeshes,createTrapPads,updateTrapPads} from './trap-model.mjs';
 import {createPickupMesh,updatePickupMesh,drawMinimap} from './adventure-display.mjs';
 const SOFT_TINT=new THREE.Color('#fff4e9');
 
@@ -52,6 +52,7 @@ export class Renderer {
     const points=[];for(let i=0;i<=64;i++){const a=i/64*Math.PI*2;points.push(new THREE.Vector3(Math.cos(a),.09,Math.sin(a)))}
     this.safeRing=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#ffdb94',transparent:true,opacity:.8}));this.safeRing.visible=false;this.scene.add(this.safeRing);
     this.trapMeshes=createTrapMeshes();for(const mesh of Object.values(this.trapMeshes))this.scene.add(mesh);
+    this.trapPads=createTrapPads();for(const mesh of Object.values(this.trapPads))this.scene.add(mesh);
     this.pickupMesh=createPickupMesh();this.scene.add(this.pickupMesh);this.overview=false;
     this.onContextLost=event=>{event.preventDefault();this.contextLost=true};
     this.onContextRestored=()=>{this.contextLost=false};
@@ -145,6 +146,7 @@ export class Renderer {
     if(e.type==='hit')this.rings.push({kind:'impact',x:p.x,y:p.y,life:.18,crit:e.crit});
     if(e.type==='skill'){const screen=this.project(e.fighter.x,e.fighter.y,.1);this.rings.push({x:screen.x,y:screen.y,life:.35})}
     if(e.type==='infect'||e.type==='pickup'){this.numbers.push({x:p.x,y:p.y,text:e.type==='infect'?'감염':({heal:'회복',boost:'가속',shield:'보호막',slip:'미끄럼'}[e.kind]),life:.8,crit:false,color:e.type==='infect'?e.target.color:'#f1d284'})}
+    if(e.type==='trap-effect')this.numbers.push({x:p.x,y:p.y,text:e.text,life:.8,color:trapType(e).activeColor});
     if(e.type==='trap-blast')for(let i=0;i<(this.lowPower?8:18);i++)this.particles.push({x:p.x,y:p.y+16,vx:(Math.random()-.5)*100,vy:-20-Math.random()*55,life:.45,color:i%2?trapType(e).color:trapType(e).activeColor});
     if(e.type==='win')for(let i=0;i<(this.lowPower?30:70);i++)this.particles.push({x:100+Math.random()*568,y:Math.random()*80,vx:(Math.random()-.5)*30,vy:30+Math.random()*40,life:4,color:['#efca74','#cfdb91','#eda181'][i%3]});
     this.particles=this.particles.slice(this.lowPower?-90:-200);this.numbers=this.numbers.slice(-12);this.rings=this.rings.slice(this.lowPower?-32:-64);
@@ -157,10 +159,9 @@ export class Renderer {
     this.updateCamera(battle,dt);this.actors(battle);updatePickupMesh(this.pickupMesh,battle,this.time);
     this.safeRing.visible=battle.ring!==null;if(battle.ring!==null)this.safeRing.scale.set(battle.ring/(this.activeMap===ART_MAP_ID?18:20),1,battle.ring/(this.activeMap===ART_MAP_ID?19.8:33));
     const center=battle.map.ringCenter??{x:384,y:252},ringPoint=this.activeMap===ART_MAP_ID?artWorldPosition(center.x,center.y):worldPosition(center.x,center.y);this.safeRing.position.set(ringPoint.x,0,ringPoint.z);
-    updateTrapMeshes(this.trapMeshes,battle,this.effects);
+    updateTrapMeshes(this.trapMeshes,battle,this.effects);updateTrapPads(this.trapPads,battle);
     this.gl.render(this.scene,this.camera);
     const c=this.c;c.clearRect(0,0,768,480);c.textAlign='center';
-    drawTrapLabels(c,battle,(x,y)=>this.project(x,y,.18),this.mobile?20:14);
     const scale=fighterScale(this.mobile,battle.fighters.length)*(battle.mode==='race'?.8:1);
     for(const f of battle.alive){
       const p=this.project(f.x,f.y,1.73*scale);
@@ -181,7 +182,8 @@ export class Renderer {
         c.globalAlpha=Math.max(0,ring.life/.35);c.strokeStyle='#fff1b5';c.lineWidth=3;c.beginPath();c.ellipse(ring.x,ring.y,(1-ring.life/.35)*45,(1-ring.life/.35)*22,0,0,Math.PI*2);c.stroke();
       }
     }c.globalAlpha=1;this.rings=this.rings.filter(r=>r.life>0);
-    drawMinimap(c,battle,this.mobile,this.cameraMeta);
+    drawTrapLabels(c,battle,(x,y)=>this.project(x,y,.22),this.mobile?20:14);
+    drawMinimap(c,battle,this.mobile,this.cameraMeta);drawTrapHud(c,battle,this.mobile);
 
   }
   dispose(){

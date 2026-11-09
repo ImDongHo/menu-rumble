@@ -1,7 +1,7 @@
 import {ART_MAP_ID,loadMapArt,projectArtPoint,artPillarRect} from './art-map.mjs';
 import {terrainContains} from './terrain.mjs';
 import {drawFlatGround,drawFlatProps,sceneryStyle} from './flat-scenery.mjs';
-import {drawFlatTraps,trapType} from './traps.mjs';
+import {drawFlatTraps,drawTrapLabels,drawTrapHud,trapType} from './traps.mjs';
 import {drawAdventureMap,drawAdventurePickups,drawMinimap} from './adventure-display.mjs';
 import {overviewTransform,mapBounds} from './adventure-maps.mjs';
 import{MAPS,seededRandom}from'./engine.mjs';
@@ -85,6 +85,7 @@ export class Renderer{
   this.numbers.push({x,y,text:String(event.damage),life:.8,crit:event.crit,color:trapHit?trapType(event).activeColor:null});if(this.effects)this.shake=event.crit?3:1.2;
   for(let i=0;i<(event.crit?11:6);i++)this.particles.push({x,y:y+12,vx:(Math.random()-.5)*100,vy:(Math.random()-.5)*100-20,life:.25+Math.random()*.2,max:.45,color:trapHit?trapType(event).color:event.crit?'#ffe4a0':'#f9f5d0',size:2+Math.random()*2});
  }else if(event.type==='eliminate'){for(let i=0;i<15;i++)this.particles.push({x,y:y-10,vx:(Math.random()-.5)*100,vy:-Math.random()*85,life:.6,max:.6,color:event.fighter.color,size:3})}
+ else if(event.type==='trap-effect'){this.numbers.push({x,y,text:event.text,life:.8,crit:false,color:trapType(event).activeColor})}
  else if(event.type==='dash'){for(let i=0;i<5;i++)this.particles.push({x:x+(Math.random()-.5)*12,y,vx:(Math.random()-.5)*15,vy:-8,life:.3,max:.3,color:'#fff1c4',size:2})}
  else if(event.type==='dodge'){this.numbers.push({x,y,text:'회피',life:.55,crit:false})}
  else if(event.type==='skill'){for(let i=0;i<18;i++){const a=i/18*Math.PI*2;this.particles.push({x,y,vx:Math.cos(a)*125,vy:Math.sin(a)*75,life:.35,max:.35,color:'#fff2af',size:3})}}
@@ -99,7 +100,7 @@ export class Renderer{
   for(const e of entities)if(e.kind==='pillar'){if(battle.map.id===ART_MAP_ID){const r=artPillarRect(e.o);c.save();c.beginPath();c.rect(r.x,r.y,r.w,r.h);c.clip();c.drawImage(this.backgrounds.get(battle.map.id),0,0);if(battle.map.large){const t=overviewTransform(battle.map);c.save();c.translate(t.x,t.y);c.scale(t.scale,t.scale);drawAdventurePickups(c,battle)}c.restore()}else pillar(c,e.o,battle.map)}else{const f=e.f;if(f.dead&&battle.elapsed-f.deadTime>2)continue;if(battle.state==='ready')f.step=this.time*2+f.id;const display=battle.map.id===ART_MAP_ID?{...f,...projectArtPoint(f.x,f.y)}:f;drawFighter(c,display,this.time,this.mobile?1.15:1,false,this.mobile?12:9);if(battle.state==='finished'&&battle.winner===f&&!f.isCaptain){c.fillStyle='#f4d585';c.font='19px sans-serif';c.textAlign='center';c.fillText('♛',display.x,display.y-57+Math.sin(this.time*3)*2)}}
   for(const p of this.particles){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.max<2)p.vy+=100*dt;c.globalAlpha=Math.max(0,p.life/p.max);rect(c,p.x,p.y,p.size,p.size,p.color)}c.globalAlpha=1;this.particles=this.particles.filter(p=>p.life>0);
   for(const n of this.numbers){n.life-=dt;n.y-=dt*23;c.globalAlpha=Math.min(1,Math.max(0,n.life*3));c.font=`800 ${n.crit?16:12}px Outfit,sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#294532';c.strokeText(n.text+(n.crit?'!':''),n.x,n.y);c.fillStyle=n.color??(n.crit?'#ffe09a':'#fffbdc');c.fillText(n.text+(n.crit?'!':''),n.x,n.y)}c.globalAlpha=1;this.numbers=this.numbers.filter(n=>n.life>0);
-  if(battle.map.id==='moon'){for(let i=0;i<22;i++){const x=40+(i*103)%700+Math.sin(this.time*.7+i)*8,y=30+(i*71)%410+Math.cos(this.time*.5+i)*8;c.globalAlpha=.25+Math.sin(this.time+i)*.15;rect(c,x,y,2,2,'#e1e4cd')}c.globalAlpha=1}if(battle.map.large)c.restore();drawMinimap(c,battle,this.mobile);c.restore();
+  if(battle.map.id==='moon'){for(let i=0;i<22;i++){const x=40+(i*103)%700+Math.sin(this.time*.7+i)*8,y=30+(i*71)%410+Math.cos(this.time*.5+i)*8;c.globalAlpha=.25+Math.sin(this.time+i)*.15;rect(c,x,y,2,2,'#e1e4cd')}c.globalAlpha=1}drawTrapLabels(c,battle,battle.map.art?projectArtPoint:(x,y)=>({x,y}),this.mobile?20:14);if(battle.map.large)c.restore();drawMinimap(c,battle,this.mobile);drawTrapHud(c,battle,this.mobile);c.restore();
  }
  dispose(){for(const canvas of this.backgrounds.values())canvas.cancelMapArt?.();this.backgrounds.clear();this.particles=[];this.numbers=[]}
 

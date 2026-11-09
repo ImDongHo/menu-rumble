@@ -4,7 +4,7 @@ import {ADVENTURE_MAPS,mapBounds} from './adventure-maps.mjs';
 import {prepareAdventure,stepRace,raceStandings,adventureWaypoint,collectRoyaleItems,convertFighter} from './adventure-modes.mjs';
 import {TrapField,trapWaypoint,trapType} from './traps.mjs';
 export const MODES={classic:{name:'일반 난투',description:'마지막까지 남은 메뉴가 승리해요.'},captain:{name:'대장전',description:'왕관을 쓴 대장이 쓰러지면 해당 팀이 모두 탈락해요.'},traps:{name:'함정전',description:'2초 예고! 폭발·독 장판·충격파를 피해 살아남으세요.'}};
-Object.assign(MODES,{royale:{name:'배틀로얄',description:'전용 섬에서 아이템을 찾고 좁아지는 안전 구역에서 살아남으세요.'},race:{name:'레이스',description:'메뉴당 대표 1마리! 같은 기본 속도로 달려 결승선에 먼저 도착하세요.'},infection:{name:'감염전',description:'쓰러진 상대를 우리 메뉴로 감염시켜 전원을 같은 진영으로 바꾸세요.'}});
+Object.assign(MODES,{royale:{name:'배틀로얄',description:'폭발·충격파 함정을 피하고 좁아지는 안전 구역에서 살아남으세요.'},race:{name:'레이스',description:'메뉴당 대표 1마리! 감속 함정을 피해 결승선에 먼저 도착하세요.'},infection:{name:'감염전',description:'가스 함정을 피해 상대를 감염시키고 전원을 우리 진영으로 바꾸세요.'}});
 export const COLORS = ['#ec6259','#ed9c3e','#ee79a3','#479cdd','#a67b54','#e1bd39','#a884d3','#60aa59','#39b6a2','#ca799b','#7298b3','#b0ba4d','#c17a49','#7e8ed0','#be9992','#8fa26b'];
 export const MAX_FIGHTERS = 160;
 export const WEAPONS = {none:{name:'맨손',multiplier:1},sword:{name:'짧은 검',multiplier:1.1}};
@@ -76,7 +76,7 @@ export class Battle {
     }
     if(this.mode==='captain'){const leaders=seededRandom(seed^0x721ca9);for(const team of this.teams){const members=this.fighters.filter(f=>f.teamId===team.id);members[Math.floor(leaders()*members.length)].isCaptain=true}}
     prepareAdventure(this);
-    this.trapField=this.mode==='traps'?new TrapField(this.map,seededRandom(seed^0x51a7cafe)):null;
+    this.trapField=this.mode==='traps'||this.map.hazards?new TrapField(this.map,seededRandom(seed^0x51a7cafe)):null;
     if(this.trapField){const reaction=seededRandom(seed^0x64ba12);this.trapDamageRandom=seededRandom(seed^0x713bc4);for(const f of this.fighters)f.trapReaction=.25+reaction()*2.25}
   }
   get traps(){return this.state==='finished'?[]:this.trapField?.zones??[]}
@@ -129,6 +129,12 @@ export class Battle {
     const type=trapType(zone);
     const victims=shuffle(this.alive.filter(f=>Math.hypot(f.x-zone.x,f.y-zone.y)<=zone.r),this.trapDamageRandom);
     for(const f of victims){
+      if(this.mode==='race'||this.mode==='infection'){
+        zone.affected??=new Set();if(zone.affected.has(f.id))continue;zone.affected.add(f.id);
+        const protectedByShield=this.mode==='race'&&f.shield>0;
+        if(protectedByShield)f.shield=0;else if(this.mode==='race')f.slow=Math.max(f.slow,1.4);else{f.trapSlow=Math.max(f.trapSlow??0,1.6);f.stun=Math.max(f.stun,.45)}
+        this.events.push({type:'trap-effect',kind:zone.kind,fighter:f,text:protectedByShield?'방어':this.mode==='race'?'감속':'가스 경직',x:f.x,y:f.y-25});continue;
+      }
       const dx=f.x-zone.x,dy=f.y-zone.y,d=Math.hypot(dx,dy),angle=d?Math.atan2(dy,dx):this.trapDamageRandom()*Math.PI*2;
       f.hp=Math.max(0,f.hp-type.damage);f.vx+=Math.cos(angle)*type.push;f.vy+=Math.sin(angle)*type.push;f.flash=.18;
       if(type.push){f.stun=.2;f.hurt=.4;f.hurtStrength=.8}
@@ -161,12 +167,14 @@ export class Battle {
       const dx = target.x-f.x,dy = target.y-f.y,d = Math.hypot(dx,dy)||1;
       f.angle = Math.atan2(dy,dx); if (Math.abs(dx) > 2) f.face = dx > 0 ? 1 : -1;
       let speed = d > 25 ? (this.map.large?64:43) : 6;
+      if(f.trapSlow>0)f.trapSlow=Math.max(0,f.trapSlow-dt);
       if(f.boost>0){f.boost=Math.max(0,f.boost-dt);speed*=1.45}
       if (f.dashCooldown <= 0 && d > 60) { f.dash = .18; f.dashCooldown = 1.5+this.random()*3; this.events.push({type:'dash',fighter:f,x:f.x,y:f.y}); }
       if (f.dash > 0) speed = 155;
       if (f.stun > 0) speed = 0;
       const normalWaypoint=this.map.large?adventureWaypoint(this,f,target):terrainWaypoint(this.map,f,target),waypoint=this.trapField?trapWaypoint(this.map,f,normalWaypoint,this.traps,this.elapsed):normalWaypoint,evading=waypoint!==normalWaypoint;
       if(evading&&f.stun<=0)speed=86;
+      if(f.trapSlow>0)speed*=.55;
       const wx=waypoint.x-f.x,wy=waypoint.y-f.y,wd=Math.hypot(wx,wy)||1;
       if(evading){f.angle=Math.atan2(wy,wx);if(Math.abs(wx)>2)f.face=wx>0?1:-1}
       let mx = wx/wd*speed,my = wy/wd*speed,nearbyEnemies = 0;
@@ -213,6 +221,7 @@ export class Battle {
     }
     for(const zone of traps?.blasts??[])this.blast(zone);
     for(const zone of traps?.pulses??[])this.trapDamage(zone);
+    if(this.mode==='infection')for(const zone of this.traps)if(zone.detonated)this.trapDamage(zone);
     // Finish from live battle state only. No winner is chosen before the fight.
     const survivingTeams = this.aliveTeams;
     if (survivingTeams.length === 1) {
